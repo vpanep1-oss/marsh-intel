@@ -854,7 +854,15 @@ export default function FishingTool() {
         } catch {}
         try {
           const rSnap = await getDoc(doc(db, "users", user.uid, "data", "rules"));
-          if (rSnap.exists()) { const r = rSnap.data().rules; if (r?.length) setUserRules(r); }
+          if (rSnap.exists()) {
+            const r = rSnap.data().rules; if (r?.length) setUserRules(r);
+          } else {
+            const local = await storageGet("user_rules");
+            if (local?.length) {
+              setUserRules(local);
+              await setDoc(doc(db, "users", user.uid, "data", "rules"), { rules: local });
+            }
+          }
         } catch {}
       }
     });
