@@ -1315,6 +1315,7 @@ export default function FishingTool() {
                   <div>
                     <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Tide Station</div>
                     <select value={tideStation} onChange={e => { setTideStation(e.target.value); setTidePreds([]); setTidePreds2([]); }}>
+                      <option value="">— Select Station —</option>
                       {TIDE_STATIONS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                     </select>
                   </div>
