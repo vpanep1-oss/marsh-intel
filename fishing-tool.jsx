@@ -805,11 +805,7 @@ export default function FishingTool() {
   const [zones, setZones] = useState(["lake-borgne"]);
   const [tripStart, setTripStart] = useState("");
   const [tripEnd,   setTripEnd]   = useState("");
-  const [blocks, setBlocks] = useState([
-    { startTime: "06:30", endTime: "10:00", tideDir: "falling", tideChange: 0.25, windDir: "SSE", windSpeed: 6 },
-    { startTime: "10:00", endTime: "10:45", tideDir: "slack",   tideChange: 0,    windDir: "S",   windSpeed: 8 },
-    { startTime: "10:45", endTime: "14:00", tideDir: "rising",  tideChange: 0.25, windDir: "S",   windSpeed: 11 },
-  ]);
+  const [blocks, setBlocks] = useState([]);
   const [notes, setNotes] = useState("");
   const [plan, setPlan] = useState(null);
   const [userRules, setUserRules] = useState([]);
@@ -904,7 +900,7 @@ export default function FishingTool() {
     setCoords(emptyCoords);
     setZones(["lake-borgne"]);
     setTripStart(""); setTripEnd("");
-    setBlocks([{ startTime: "06:30", endTime: "14:00", tideDir: "falling", tideChange: 0.25, windDir: "S", windSpeed: 5 }]);
+    setBlocks([]);
     setTideStation(""); setTideStation2("");
     setNotes(""); setPlan(null);
   };
