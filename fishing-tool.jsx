@@ -1625,7 +1625,10 @@ export default function FishingTool() {
           )}
 
           {/* RULES */}
-          {tab === "rules" && (
+          {tab === "rules" && !currentUser && (
+            <div style={{ textAlign:"center", padding:"60px 20px", fontFamily:"IBM Plex Mono,monospace", color:"var(--mu)", fontSize:"0.78rem" }}>Sign in to view the Rules DB.</div>
+          )}
+          {tab === "rules" && currentUser && (
             <>
               <div className="sl">Built-In Rules</div>
               {BUILTIN_RULES.map(r => (
@@ -1653,7 +1656,10 @@ export default function FishingTool() {
           )}
 
           {/* HISTORY */}
-          {tab === "history" && (
+          {tab === "history" && !currentUser && (
+            <div style={{ textAlign:"center", padding:"60px 20px", fontFamily:"IBM Plex Mono,monospace", color:"var(--mu)", fontSize:"0.78rem" }}>Sign in to view your trip history.</div>
+          )}
+          {tab === "history" && currentUser && (
             <>
               <div className="sl">Saved Trips</div>
               {trips.length === 0 && <p style={{ color:"var(--mu)", fontFamily:"IBM Plex Mono,monospace", fontSize:"0.76rem" }}>No trips saved yet. Generate a plan and click Save Trip.</p>}
