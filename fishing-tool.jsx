@@ -1293,18 +1293,18 @@ export default function FishingTool() {
               {/* ── TRIP DETAILS ─────────────────────────────── */}
               <div className="sl">Trip Details</div>
               <div className="card" style={{ marginBottom:18 }}>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
-                  <div style={{ minWidth:0 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:12 }}>
+                  <div>
                     <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Date</div>
-                    <input type="date" value={tideDate} onChange={e => { setTideDate(e.target.value); setTidePreds([]); setTidePreds2([]); setWindForecast([]); }} style={{ width:"100%", minWidth:0 }} />
+                    <input type="date" value={tideDate} onChange={e => { setTideDate(e.target.value); setTidePreds([]); setTidePreds2([]); setWindForecast([]); }} />
                   </div>
-                  <div style={{ minWidth:0 }}>
+                  <div>
                     <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Trip Start</div>
-                    <input type="time" value={tripStart} onChange={e => setTripStart(e.target.value)} style={{ width:"100%", minWidth:0 }} />
+                    <input type="time" value={tripStart} onChange={e => setTripStart(e.target.value)} />
                   </div>
-                  <div style={{ minWidth:0 }}>
+                  <div>
                     <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Trip End</div>
-                    <input type="time" value={tripEnd} onChange={e => setTripEnd(e.target.value)} style={{ width:"100%", minWidth:0 }} />
+                    <input type="time" value={tripEnd} onChange={e => setTripEnd(e.target.value)} />
                   </div>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
