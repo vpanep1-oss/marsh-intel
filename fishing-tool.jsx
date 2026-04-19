@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 import { auth, provider, db } from "./firebase.js";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, setDoc, getDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "firebase/firestore";
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 const WIND_DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
@@ -844,27 +844,36 @@ export default function FishingTool() {
       const t = await storageGet("saved_trips"); if (t) setTrips(t);
     })();
     const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) { setCurrentUser(null); return; }
+      try {
+        const accessSnap = await getDoc(doc(db, "config", "access"));
+        const allowed = accessSnap.data()?.allowedEmails ?? [];
+        if (!allowed.includes(user.email)) {
+          await signOut(auth);
+          setCurrentUser({ denied: true });
+          return;
+        }
+      } catch {}
       setCurrentUser(user);
-      if (user) {
-        try {
-          const q = query(collection(db, "users", user.uid, "trips"), orderBy("createdAt", "desc"), limit(30));
-          const snap = await getDocs(q);
-          const cloud = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          if (cloud.length) setTrips(cloud);
-        } catch {}
-        try {
-          const rSnap = await getDoc(doc(db, "users", user.uid, "data", "rules"));
-          if (rSnap.exists()) {
-            const r = rSnap.data().rules; if (r?.length) setUserRules(r);
-          } else {
-            const local = await storageGet("user_rules");
-            if (local?.length) {
-              setUserRules(local);
-              await setDoc(doc(db, "users", user.uid, "data", "rules"), { rules: local });
-            }
+      try {
+        const q = query(collection(db, "users", user.uid, "trips"), orderBy("createdAt", "desc"), limit(30));
+        const snap = await getDocs(q);
+        const cloud = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (cloud.length) setTrips(cloud);
+      } catch {}
+      try {
+        const rSnap = await getDocs(collection(db, "sharedRules"));
+        const cloudRules = rSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (cloudRules.length) {
+          setUserRules(cloudRules);
+        } else {
+          const local = await storageGet("user_rules");
+          if (local?.length) {
+            setUserRules(local);
+            await Promise.all(local.map(r => setDoc(doc(db, "sharedRules", String(r.id)), { ...r, addedBy: user.email })));
           }
-        } catch {}
-      }
+        }
+      } catch {}
     });
     return () => unsub();
   }, []);
@@ -1089,7 +1098,9 @@ export default function FishingTool() {
   const saveFeedback = async (newRules, general) => {
     const updated = [...userRules, ...newRules];
     setUserRules(updated); await storageSet("user_rules", updated);
-    await syncRules(updated);
+    if (currentUser) {
+      try { await Promise.all(newRules.map(r => setDoc(doc(db, "sharedRules", String(r.id)), { ...r, addedBy: currentUser.email }))); } catch {}
+    }
     const tripId = String(Date.now());
     const trip = { id: tripId, date: new Date().toLocaleDateString(), coords, zones, blocks, notes: notes + (general ? `\n\nDebrief: ${general}` : ""), plan, riverFt, tideStation, tideDate, createdAt: Date.now(), debriefed: true };
     const updatedT = [trip, ...trips].slice(0, 30);
@@ -1111,16 +1122,12 @@ export default function FishingTool() {
     });
   };
 
-  const syncRules = async (rules) => {
-    if (currentUser) {
-      try { await setDoc(doc(db, "users", currentUser.uid, "data", "rules"), { rules }); } catch {}
-    }
-  };
-
   const deleteRule = async id => {
     const updated = userRules.filter(r => r.id !== id);
     setUserRules(updated); await storageSet("user_rules", updated);
-    await syncRules(updated);
+    if (currentUser) {
+      try { await deleteDoc(doc(db, "sharedRules", String(id))); } catch {}
+    }
   };
 
   const loadTrip = t => {
@@ -1130,6 +1137,14 @@ export default function FishingTool() {
     if (t.tideDate) setTideDate(t.tideDate);
     setTab("plan");
   };
+
+  if (currentUser?.denied) return (
+    <div style={{ minHeight:"100vh", background:"#0a0f14", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, color:"#d0e4f0", fontFamily:"IBM Plex Mono, monospace" }}>
+      <div style={{ fontSize:"1.1rem", color:"#e05a2b" }}>Access Denied</div>
+      <div style={{ fontSize:"0.75rem", color:"#5a7a94" }}>Your account is not authorized to use this app.</div>
+      <button onClick={() => { setCurrentUser(null); }} style={{ marginTop:8, padding:"8px 20px", background:"transparent", border:"1px solid #5a7a94", borderRadius:6, color:"#5a7a94", cursor:"pointer", fontFamily:"IBM Plex Mono, monospace", fontSize:"0.7rem" }}>Sign Out</button>
+    </div>
+  );
 
   const riverColor = riverFt === null ? "#5a7a94" : riverFt > 12 ? "#e05a2b" : "#00c8a0";
 
