@@ -40,6 +40,17 @@ const BUILTIN_RULES = [
   },
 ];
 
+function pointInPolygon(point, polygon) {
+  let inside = false;
+  const x = point.lng, y = point.lat;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].lng, yi = polygon[i].lat;
+    const xj = polygon[j].lng, yj = polygon[j].lat;
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
 // ─── RULE MATCHING ────────────────────────────────────────────────────────────
 function matchRule(rule, { windDir, windSpeed, tideDir }) {
   const c = rule.conditions;
@@ -880,6 +891,29 @@ export default function FishingTool() {
 
   const allRules = [...BUILTIN_RULES, ...userRules];
 
+  const emptyCoords = [{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}];
+
+  const handleCoordsChange = (newCoords) => {
+    setCoords(newCoords);
+    const poly = newCoords
+      .filter(c => c.lat !== "" && c.lng !== "" && !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lng)))
+      .map(c => ({ lat: parseFloat(c.lat), lng: parseFloat(c.lng) }));
+    const auto = poly.length >= 3
+      ? ZONES.filter(z => z.id === "lake-borgne" || pointInPolygon({ lat: z.lat, lng: z.lng }, poly)).map(z => z.id)
+      : ["lake-borgne"];
+    setZones(auto);
+  };
+
+  const handleSignOut = async () => {
+    await signOut(auth);
+    setCoords(emptyCoords);
+    setZones(["lake-borgne"]);
+    setTripStart("06:30"); setTripEnd("14:00");
+    setBlocks([{ startTime: "06:30", endTime: "14:00", tideDir: "falling", tideChange: 0.25, windDir: "S", windSpeed: 5 }]);
+    setTideStation("8761305"); setTideStation2("");
+    setNotes(""); setPlan(null);
+  };
+
   const upd = (i, f, v) => setBlocks(p => p.map((b, j) => j === i ? { ...b, [f]: v } : b));
   const add = () => { const l = blocks[blocks.length-1]; setBlocks(p => [...p, { startTime: l.endTime, endTime: "16:00", tideDir: "rising", tideChange: 0.25, windDir: "S", windSpeed: 10 }]); };
   const rem = i => setBlocks(p => p.filter((_, j) => j !== i));
@@ -1230,7 +1264,7 @@ export default function FishingTool() {
             {currentUser ? (
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.6rem", color: "var(--mu)" }}>{currentUser.displayName || currentUser.email}</span>
-                <button className="btn btn-secondary btn-sm" onClick={() => signOut(auth)}>Sign Out</button>
+                <button className="btn btn-secondary btn-sm" onClick={handleSignOut}>Sign Out</button>
               </div>
             ) : (
               <button className="btn btn-secondary btn-sm" onClick={() => signInWithPopup(auth, provider)}>Sign in with Google</button>
@@ -1339,8 +1373,8 @@ export default function FishingTool() {
                       {coords.map((c, i) => (
                         <div key={i} className="crow">
                           <span className="clbl">P{i+1}</span>
-                          <input placeholder="Lat" value={c.lat} onChange={e => setCoords(p => p.map((x,j) => j===i?{...x,lat:e.target.value}:x))} />
-                          <input placeholder="Lng" value={c.lng} onChange={e => setCoords(p => p.map((x,j) => j===i?{...x,lng:e.target.value}:x))} />
+                          <input placeholder="Lat" value={c.lat} onChange={e => handleCoordsChange(coords.map((x,j) => j===i?{...x,lat:e.target.value}:x))} />
+                          <input placeholder="Lng" value={c.lng} onChange={e => handleCoordsChange(coords.map((x,j) => j===i?{...x,lng:e.target.value}:x))} />
                         </div>
                       ))}
                     </div>
@@ -1582,7 +1616,7 @@ export default function FishingTool() {
             <>
               <div className="sl">Fishing Zone Map</div>
               <p style={{ fontSize:"0.8rem", color:"var(--mu)", marginBottom:13, lineHeight:1.6 }}>Blue polygon = your coordinate boundary. Teal circles = selected zones.</p>
-              <MapView coords={coords} selectedZones={zones} onCoordsChange={setCoords} />
+              <MapView coords={coords} selectedZones={zones} onCoordsChange={handleCoordsChange} />
               <div className="sl" style={{ marginTop:18 }}>Zone Reference</div>
               <div className="card">
                 {ZONES.map(z => (
