@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 import { auth, provider, db } from "./firebase.js";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, doc, setDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { collection, doc, setDoc, getDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 const WIND_DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
@@ -852,6 +852,10 @@ export default function FishingTool() {
           const cloud = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           if (cloud.length) setTrips(cloud);
         } catch {}
+        try {
+          const rSnap = await getDoc(doc(db, "users", user.uid, "data", "rules"));
+          if (rSnap.exists()) { const r = rSnap.data().rules; if (r?.length) setUserRules(r); }
+        } catch {}
       }
     });
     return () => unsub();
@@ -1077,6 +1081,7 @@ export default function FishingTool() {
   const saveFeedback = async (newRules, general) => {
     const updated = [...userRules, ...newRules];
     setUserRules(updated); await storageSet("user_rules", updated);
+    await syncRules(updated);
     const tripId = String(Date.now());
     const trip = { id: tripId, date: new Date().toLocaleDateString(), coords, zones, blocks, notes: notes + (general ? `\n\nDebrief: ${general}` : ""), plan, riverFt, tideStation, tideDate, createdAt: Date.now(), debriefed: true };
     const updatedT = [trip, ...trips].slice(0, 30);
@@ -1098,9 +1103,16 @@ export default function FishingTool() {
     });
   };
 
+  const syncRules = async (rules) => {
+    if (currentUser) {
+      try { await setDoc(doc(db, "users", currentUser.uid, "data", "rules"), { rules }); } catch {}
+    }
+  };
+
   const deleteRule = async id => {
     const updated = userRules.filter(r => r.id !== id);
     setUserRules(updated); await storageSet("user_rules", updated);
+    await syncRules(updated);
   };
 
   const loadTrip = t => {
