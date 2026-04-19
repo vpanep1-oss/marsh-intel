@@ -803,8 +803,8 @@ export default function FishingTool() {
   const [tab, setTab] = useState("setup");
   const [coords, setCoords] = useState([{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}]);
   const [zones, setZones] = useState(["lake-borgne"]);
-  const [tripStart, setTripStart] = useState("06:30");
-  const [tripEnd,   setTripEnd]   = useState("14:00");
+  const [tripStart, setTripStart] = useState("");
+  const [tripEnd,   setTripEnd]   = useState("");
   const [blocks, setBlocks] = useState([
     { startTime: "06:30", endTime: "10:00", tideDir: "falling", tideChange: 0.25, windDir: "SSE", windSpeed: 6 },
     { startTime: "10:00", endTime: "10:45", tideDir: "slack",   tideChange: 0,    windDir: "S",   windSpeed: 8 },
@@ -818,7 +818,7 @@ export default function FishingTool() {
   const [showFeedback, setShowFeedback] = useState(false);
 
   // Tide
-  const [tideStation, setTideStation] = useState("8761305");
+  const [tideStation, setTideStation] = useState("");
   const [tideStation2, setTideStation2] = useState("");
   const [blendWeight, setBlendWeight] = useState(0.5);
   const [tideDate, setTideDate] = useState(new Date().toISOString().slice(0,10));
@@ -903,9 +903,9 @@ export default function FishingTool() {
     await signOut(auth);
     setCoords(emptyCoords);
     setZones(["lake-borgne"]);
-    setTripStart("06:30"); setTripEnd("14:00");
+    setTripStart(""); setTripEnd("");
     setBlocks([{ startTime: "06:30", endTime: "14:00", tideDir: "falling", tideChange: 0.25, windDir: "S", windSpeed: 5 }]);
-    setTideStation("8761305"); setTideStation2("");
+    setTideStation(""); setTideStation2("");
     setNotes(""); setPlan(null);
   };
 
