@@ -801,13 +801,8 @@ function FeedbackModal({ plan, onSave, onClose }) {
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function FishingTool() {
   const [tab, setTab] = useState("setup");
-  const [coords, setCoords] = useState([
-    { lat: "30.13731", lng: "-89.69476" },
-    { lat: "30.12400", lng: "-89.65886" },
-    { lat: "30.04596", lng: "-89.75359" },
-    { lat: "30.06704", lng: "-89.78540" },
-  ]);
-  const [zones, setZones] = useState(["lake-st-catherine","lake-catherine-cuts","chef-pass"]);
+  const [coords, setCoords] = useState([{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}]);
+  const [zones, setZones] = useState(["lake-borgne"]);
   const [tripStart, setTripStart] = useState("06:30");
   const [tripEnd,   setTripEnd]   = useState("14:00");
   const [blocks, setBlocks] = useState([
