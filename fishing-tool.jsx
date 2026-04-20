@@ -692,16 +692,31 @@ function Section({ title, items, color = "#00c8a0", textColor }) {
 }
 
 // ─── FEEDBACK MODAL ───────────────────────────────────────────────────────────
-function FeedbackModal({ plan, onSave, onClose }) {
-  const [fbs, setFbs] = useState(plan.map((b, i) => ({ i, worked: "yes", notes: "", createRule: false, ruleZones: [], ruleFlag: "avoid" })));
-  const [general, setGeneral] = useState("");
+const SPECIES_LIST = ["Redfish", "Bass", "Trout", "Flounder", "Other"];
+const SIZE_OPTS    = ["Undersized", "Keeper", "Trophy", "Mixed"];
 
+function FeedbackModal({ plan, zones, onSave, onClose }) {
+  const [targetSpecies, setTargetSpecies] = useState([]);
+  const [otherSpeciesText, setOtherSpeciesText] = useState("");
+  const [catchLog, setCatchLog]   = useState([]);
+  const [rating, setRating]       = useState(0);
+  const [general, setGeneral]     = useState("");
+  const [fbs, setFbs] = useState(plan.map((b, i) => ({ i, worked: "yes", notes: "", createRule: false, ruleZones: [], ruleFlag: "avoid" })));
+
+  const togSpecies = s => setTargetSpecies(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
+  const addCatch   = () => setCatchLog(p => [...p, { id: Date.now(), species: "Redfish", count: "", size: "Keeper", bait: "", zone: zones[0] || "" }]);
+  const updCatch   = (id, f, v) => setCatchLog(p => p.map(c => c.id === id ? { ...c, [f]: v } : c));
+  const remCatch   = id => setCatchLog(p => p.filter(c => c.id !== id));
   const upd = (i, f, v) => setFbs(p => p.map((x, j) => j === i ? { ...x, [f]: v } : x));
   const togZone = (i, zid) => setFbs(p => p.map((x, j) => {
     if (j !== i) return x;
     const rz = x.ruleZones.includes(zid) ? x.ruleZones.filter(z => z !== zid) : [...x.ruleZones, zid];
     return { ...x, ruleZones: rz };
   }));
+
+  const pill = (label, active, onClick) => (
+    <div key={label} onClick={onClick} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", padding:"4px 11px", borderRadius:16, border:`1px solid ${active ? "#00c8a0" : "#1e3048"}`, color: active ? "#00c8a0" : "#5a7a94", background: active ? "rgba(0,200,160,0.08)" : "transparent", cursor:"pointer", userSelect:"none" }}>{label}</div>
+  );
 
   const submit = () => {
     const newRules = [];
@@ -720,59 +735,125 @@ function FeedbackModal({ plan, onSave, onClose }) {
         });
       }
     });
-    onSave(newRules, general);
+    onSave(newRules, { general, targetSpecies, otherSpeciesText, catchLog, rating });
     onClose();
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 20, overflowY: "auto" }}>
-      <div style={{ background: "#111820", border: "1px solid #1e3048", borderRadius: 10, width: "100%", maxWidth: 620, margin: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 22px", borderBottom: "1px solid #1e3048" }}>
-          <span style={{ fontFamily: "Bebas Neue, sans-serif", fontSize: "1.3rem", letterSpacing: 2, color: "#00c8a0" }}>POST-TRIP DEBRIEF</span>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#5a7a94", fontSize: "1.1rem", cursor: "pointer" }}>✕</button>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:200, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:20, overflowY:"auto" }}>
+      <div style={{ background:"#111820", border:"1px solid #1e3048", borderRadius:10, width:"100%", maxWidth:620, margin:"auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 22px", borderBottom:"1px solid #1e3048" }}>
+          <span style={{ fontFamily:"Bebas Neue,sans-serif", fontSize:"1.3rem", letterSpacing:2, color:"#00c8a0" }}>POST-TRIP DEBRIEF</span>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#5a7a94", fontSize:"1.1rem", cursor:"pointer" }}>✕</button>
         </div>
-        <div style={{ padding: "18px 22px" }}>
+        <div style={{ padding:"18px 22px" }}>
+
+          {/* TARGET SPECIES */}
+          <div style={{ marginBottom:18 }}>
+            <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Target Species</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              {SPECIES_LIST.map(s => pill(s, targetSpecies.includes(s), () => togSpecies(s)))}
+            </div>
+            {targetSpecies.includes("Other") && (
+              <input value={otherSpeciesText} onChange={e => setOtherSpeciesText(e.target.value)} placeholder="Species name..." style={{ marginTop:8 }} />
+            )}
+          </div>
+
+          {/* CATCH LOG */}
+          <div style={{ marginBottom:18 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", textTransform:"uppercase", letterSpacing:1 }}>Catch Log</div>
+              <button onClick={addCatch} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.63rem", background:"transparent", border:"1px solid #00c8a0", color:"#00c8a0", borderRadius:5, padding:"3px 10px", cursor:"pointer" }}>+ Add Entry</button>
+            </div>
+            {catchLog.length === 0 && <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"#2a4060" }}>No catch entries yet.</div>}
+            {catchLog.map(c => (
+              <div key={c.id} style={{ background:"#0a0f14", border:"1px solid #1e3048", borderRadius:7, padding:"10px 12px", marginBottom:8 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+                  <div>
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#5a7a94", marginBottom:4 }}>SPECIES</div>
+                    <select value={c.species} onChange={e => updCatch(c.id, "species", e.target.value)}>
+                      {SPECIES_LIST.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#5a7a94", marginBottom:4 }}>COUNT</div>
+                    <input type="number" min="0" value={c.count} onChange={e => updCatch(c.id, "count", e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#5a7a94", marginBottom:4 }}>SIZE</div>
+                    <select value={c.size} onChange={e => updCatch(c.id, "size", e.target.value)}>
+                      {SIZE_OPTS.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#5a7a94", marginBottom:4 }}>ZONE</div>
+                    <select value={c.zone} onChange={e => updCatch(c.id, "zone", e.target.value)}>
+                      {ZONES.map(z => <option key={z.id} value={z.id}>{z.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ marginBottom:6 }}>
+                  <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#5a7a94", marginBottom:4 }}>BAIT / LURE</div>
+                  <input value={c.bait} onChange={e => updCatch(c.id, "bait", e.target.value)} placeholder="e.g. Gold spoon, paddle tail, live shrimp..." />
+                </div>
+                <button onClick={() => remCatch(c.id)} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", background:"none", border:"1px solid #1e3048", color:"#5a7a94", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Remove</button>
+              </div>
+            ))}
+          </div>
+
+          {/* TRIP RATING */}
+          <div style={{ marginBottom:18 }}>
+            <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Trip Rating</div>
+            <div style={{ display:"flex", gap:6 }}>
+              {[1,2,3,4,5].map(n => (
+                <div key={n} onClick={() => setRating(n)} style={{ width:32, height:32, borderRadius:6, border:`1px solid ${rating >= n ? "#f0a500" : "#1e3048"}`, background: rating >= n ? "rgba(240,165,0,0.12)" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontFamily:"IBM Plex Mono,monospace", fontSize:"0.75rem", color: rating >= n ? "#f0a500" : "#2a4060" }}>{n}</div>
+              ))}
+            </div>
+          </div>
+
+          {/* TIME BLOCK FEEDBACK */}
+          <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Time Block Feedback</div>
           {fbs.map((fb, i) => {
             const pb = plan[fb.i];
             return (
-              <div key={i} style={{ background: "#0a0f14", border: "1px solid #1e3048", borderRadius: 8, padding: 14, marginBottom: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <span style={{ fontFamily: "Bebas Neue, sans-serif", fontSize: "1.1rem", color: "#d0e4f0" }}>{pb.startTime}–{pb.endTime}</span>
-                  <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.65rem", background: "rgba(255,255,255,0.05)", color: "#5a7a94", padding: "2px 8px", borderRadius: 10 }}>{pb.tideDir} · {pb.windDir} {pb.windSpeed}mph</span>
+              <div key={i} style={{ background:"#0a0f14", border:"1px solid #1e3048", borderRadius:8, padding:14, marginBottom:12 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                  <span style={{ fontFamily:"Bebas Neue,sans-serif", fontSize:"1.1rem", color:"#d0e4f0" }}>{pb.startTime}–{pb.endTime}</span>
+                  <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", background:"rgba(255,255,255,0.05)", color:"#5a7a94", padding:"2px 8px", borderRadius:10 }}>{pb.tideDir} · {pb.windDir} {pb.windSpeed}mph</span>
                 </div>
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.65rem", color: "#5a7a94", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Did this window produce?</div>
-                  <div style={{ display: "flex", gap: 7 }}>
+                <div style={{ marginBottom:8 }}>
+                  <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Did this window produce?</div>
+                  <div style={{ display:"flex", gap:7 }}>
                     {["yes","partial","no"].map(v => (
-                      <label key={v} style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.7rem", padding: "5px 13px", borderRadius: 16, border: `1px solid ${fb.worked === v ? "#00c8a0" : "#1e3048"}`, color: fb.worked === v ? "#00c8a0" : "#5a7a94", background: fb.worked === v ? "rgba(0,200,160,0.08)" : "transparent", cursor: "pointer", userSelect: "none" }}>
-                        <input type="radio" style={{ display: "none" }} checked={fb.worked === v} onChange={() => upd(i, "worked", v)} />{v}
+                      <label key={v} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.7rem", padding:"5px 13px", borderRadius:16, border:`1px solid ${fb.worked === v ? "#00c8a0" : "#1e3048"}`, color: fb.worked === v ? "#00c8a0" : "#5a7a94", background: fb.worked === v ? "rgba(0,200,160,0.08)" : "transparent", cursor:"pointer", userSelect:"none" }}>
+                        <input type="radio" style={{ display:"none" }} checked={fb.worked === v} onChange={() => upd(i, "worked", v)} />{v}
                       </label>
                     ))}
                   </div>
                 </div>
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.65rem", color: "#5a7a94", textTransform: "uppercase", letterSpacing: 1, marginBottom: 5 }}>Notes — what worked / didn't</div>
-                  <textarea value={fb.notes} onChange={e => upd(i, "notes", e.target.value)} placeholder="e.g. Drain mouths productive. Chef Pass too muddy with S wind..." style={{ minHeight: 56 }} />
+                <div style={{ marginBottom:8 }}>
+                  <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Notes — what worked / didn't</div>
+                  <textarea value={fb.notes} onChange={e => upd(i, "notes", e.target.value)} placeholder="e.g. Drain mouths productive on falling tide..." style={{ minHeight:56 }} />
                 </div>
                 {fb.worked !== "yes" && fb.notes && (
                   <>
-                    <label style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: "IBM Plex Mono, monospace", fontSize: "0.68rem", color: "#5a7a94", cursor: "pointer", marginBottom: 8 }}>
-                      <input type="checkbox" checked={fb.createRule} onChange={e => upd(i, "createRule", e.target.checked)} style={{ width: "auto" }} />
+                    <label style={{ display:"flex", alignItems:"center", gap:7, fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"#5a7a94", cursor:"pointer", marginBottom:8 }}>
+                      <input type="checkbox" checked={fb.createRule} onChange={e => upd(i, "createRule", e.target.checked)} style={{ width:"auto" }} />
                       Create a rule from this feedback
                     </label>
                     {fb.createRule && (
                       <>
-                        <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.65rem", color: "#5a7a94", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Affected zones</div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                        <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Affected zones</div>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
                           {ZONES.map(z => (
-                            <div key={z.id} onClick={() => togZone(i, z.id)} style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.65rem", padding: "4px 10px", borderRadius: 16, border: `1px solid ${fb.ruleZones.includes(z.id) ? "#4ab0ff" : "#1e3048"}`, color: fb.ruleZones.includes(z.id) ? "#4ab0ff" : "#5a7a94", background: fb.ruleZones.includes(z.id) ? "rgba(74,176,255,0.08)" : "transparent", cursor: "pointer", userSelect: "none" }}>
-                              {z.label.split(" ").slice(0, 3).join(" ")}
+                            <div key={z.id} onClick={() => togZone(i, z.id)} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", padding:"4px 10px", borderRadius:16, border:`1px solid ${fb.ruleZones.includes(z.id) ? "#4ab0ff" : "#1e3048"}`, color: fb.ruleZones.includes(z.id) ? "#4ab0ff" : "#5a7a94", background: fb.ruleZones.includes(z.id) ? "rgba(74,176,255,0.08)" : "transparent", cursor:"pointer", userSelect:"none" }}>
+                              {z.label.split(" ").slice(0,3).join(" ")}
                             </div>
                           ))}
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.65rem", color: "#5a7a94", textTransform: "uppercase", letterSpacing: 1 }}>Rule type</div>
-                          <select value={fb.ruleFlag} onChange={e => upd(i, "ruleFlag", e.target.value)} style={{ maxWidth: 140 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", textTransform:"uppercase", letterSpacing:1 }}>Rule type</div>
+                          <select value={fb.ruleFlag} onChange={e => upd(i, "ruleFlag", e.target.value)} style={{ maxWidth:140 }}>
                             <option value="avoid">Avoid</option>
                             <option value="caution">Caution</option>
                           </select>
@@ -784,11 +865,13 @@ function FeedbackModal({ plan, onSave, onClose }) {
               </div>
             );
           })}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.65rem", color: "#5a7a94", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Overall trip notes</div>
-            <textarea value={general} onChange={e => setGeneral(e.target.value)} placeholder="General observations, species caught, water conditions..." style={{ minHeight: 64 }} />
+
+          {/* GENERAL NOTES */}
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>General Notes</div>
+            <textarea value={general} onChange={e => setGeneral(e.target.value)} placeholder="Water clarity, bait activity, anything notable..." style={{ minHeight:64 }} />
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display:"flex", gap:10 }}>
             <button className="btn btn-primary" onClick={submit}>Save Debrief & Rules</button>
             <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           </div>
@@ -1120,19 +1203,20 @@ export default function FishingTool() {
     });
   };
 
-  const saveFeedback = async (newRules, general) => {
+  const saveFeedback = async (newRules, debrief) => {
     const updated = [...userRules, ...newRules];
     setUserRules(updated); await storageSet("user_rules", updated);
     if (currentUser) {
       try { await Promise.all(newRules.map(r => setDoc(doc(db, "sharedRules", String(r.id)), { ...r, addedBy: currentUser.email }))); } catch {}
     }
     const tripId = String(Date.now());
-    const trip = { id: tripId, date: new Date().toLocaleDateString(), coords, zones, blocks, notes: notes + (general ? `\n\nDebrief: ${general}` : ""), plan, riverFt, tideStation, tideDate, createdAt: Date.now(), debriefed: true };
+    const trip = { id: tripId, date: new Date().toLocaleDateString(), coords, zones, blocks, notes, plan, riverFt, tideStation, tideDate, createdAt: Date.now(), debriefed: true, debrief };
     const updatedT = [trip, ...trips].slice(0, 30);
     setTrips(updatedT); await storageSet("saved_trips", updatedT);
     if (currentUser) {
       try { await setDoc(doc(db, "users", currentUser.uid, "trips", tripId), trip); } catch {}
     }
+    const catchSummary = (debrief.catchLog || []).map(c => `${c.count} ${c.species} (${c.size}) on ${c.bait} at ${c.zone}`).join("; ");
     postToNetlify({
       date: trip.date,
       zones: zones.join(", "),
@@ -1142,8 +1226,11 @@ export default function FishingTool() {
       pearl_river_ft: pearlRiverFt ?? "",
       plan: plan?.strategy ?? "",
       notes,
-      debrief: general ?? "",
-      new_rules: newRules.map(r => r.text).join(" | "),
+      debrief: debrief.general ?? "",
+      new_rules: newRules.map(r => r.reason).join(" | "),
+      target_species: (debrief.targetSpecies || []).join(", "),
+      catch_log: catchSummary,
+      rating: debrief.rating ?? "",
     });
   };
 
@@ -1665,9 +1752,22 @@ export default function FishingTool() {
               {trips.length === 0 && <p style={{ color:"var(--mu)", fontFamily:"IBM Plex Mono,monospace", fontSize:"0.76rem" }}>No trips saved yet. Generate a plan and click Save Trip.</p>}
               {trips.map(t => (
                 <div key={t.id} className="he" onClick={() => loadTrip(t)}>
-                  <div className="hd">{t.date}{t.debriefed ? " · Debrief logged" : ""}</div>
+                  <div className="hd">
+                    {t.date}
+                    {t.debrief?.rating > 0 && <span style={{ marginLeft:8, color:"#f0a500" }}>{"★".repeat(t.debrief.rating)}{"☆".repeat(5 - t.debrief.rating)}</span>}
+                    {t.debriefed && !t.debrief?.rating && <span style={{ marginLeft:8, color:"var(--mu)" }}>· Debrief logged</span>}
+                  </div>
                   <div className="hm">Zones: {t.zones?.map(z => ZONES.find(x => x.id===z)?.label).filter(Boolean).join(", ")}{t.riverFt ? ` · River: ${t.riverFt.toFixed(1)}ft` : ""}</div>
-                  {t.notes && <div style={{ fontSize:"0.74rem", color:"var(--mu)", marginTop:4 }}>{t.notes.slice(0,100)}{t.notes.length>100?"…":""}</div>}
+                  {t.debrief?.targetSpecies?.length > 0 && (
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:5 }}>
+                      {t.debrief.targetSpecies.map(s => <span key={s} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", padding:"2px 7px", borderRadius:10, border:"1px solid #1e3048", color:"#5a7a94" }}>{s}</span>)}
+                    </div>
+                  )}
+                  {t.debrief?.catchLog?.length > 0 && (
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"var(--ac)", marginTop:5 }}>
+                      {t.debrief.catchLog.map(c => `${c.count} ${c.species}`).join(" · ")}
+                    </div>
+                  )}
                 </div>
               ))}
             </>
@@ -1676,7 +1776,7 @@ export default function FishingTool() {
         </div>
       </div>
 
-      {showFeedback && plan && <FeedbackModal plan={plan} onSave={saveFeedback} onClose={() => setShowFeedback(false)} />}
+      {showFeedback && plan && <FeedbackModal plan={plan} zones={zones} onSave={saveFeedback} onClose={() => setShowFeedback(false)} />}
     </>
   );
 }
