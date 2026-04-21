@@ -285,7 +285,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       if (season === "fall") zt("Pearl River", "Fall: bass very active as temps drop — reaction baits and moving lures productive. Reds stacking near the mouth. One of the better bass fisheries in the system this time of year.");
     }
 
-    const zoneTips = Object.entries(zoneMap).map(([label, tips]) => `${label}: ${tips.join(" ")}`);
+    const zoneTips = Object.entries(zoneMap).map(([label, tips]) => ({ label, tips }));
 
     return { startTime, endTime, tideDir, tideChange, windDir, windSpeed, strategy, primarySpecies, zoneTips, avoid, caution };
   });
@@ -740,7 +740,7 @@ function BlockCard({ block }) {
   const [open, setOpen] = useState(true);
   const hasAvoid = block.avoid.length > 0;
   const hasCaution = block.caution.length > 0;
-  const hasZoneWarning = block.zoneTips.some(t => t.includes("⚠"));
+  const hasZoneWarning = block.zoneTips.some(z => z.tips.some(t => t.includes("⚠")));
   return (
     <div className={`bc ${block.tideDir}${hasAvoid ? " bw" : ""}`}>
       <div className="bh" onClick={() => setOpen(o => !o)}>
@@ -764,14 +764,20 @@ function BlockCard({ block }) {
             <div style={{ marginTop: 12 }}>
               <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.6rem", letterSpacing: 2, textTransform: "uppercase", color: "#5a7a94", marginBottom: 7 }}>Zone Tips</div>
               <ul style={{ listStyle: "none" }}>
-                {block.zoneTips.map((tip, i) => {
-                  const isWarn = tip.includes("⚠");
-                  return (
-                    <li key={i} style={{ fontSize: "0.855rem", color: isWarn ? "#f08070" : "#d0e4f0", lineHeight: 1.55, paddingLeft: 13, position: "relative", marginBottom: 4 }}>
-                      <span style={{ position: "absolute", left: 0, color: isWarn ? "#e05a2b" : "#00c8a0" }}>{isWarn ? "⚠" : "›"}</span>{tip}
-                    </li>
-                  );
-                })}
+                {block.zoneTips.map(({ label, tips }, i) => (
+                  <li key={i} style={{ fontSize: "0.855rem", lineHeight: 1.55, paddingLeft: 13, position: "relative", marginBottom: 4 }}>
+                    <span style={{ position: "absolute", left: 0, color: "#00c8a0" }}>›</span>
+                    <span style={{ color: "#d0e4f0" }}>{label}: </span>
+                    {tips.map((tip, j) => {
+                      const isWarn = tip.includes("⚠");
+                      return (
+                        <span key={j} style={{ color: isWarn ? "#f08070" : "#d0e4f0" }}>
+                          {j > 0 && " "}{tip}
+                        </span>
+                      );
+                    })}
+                  </li>
+                ))}
               </ul>
             </div>
           )}
