@@ -219,7 +219,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
 
     // ─── ZONE TIPS ───────────────────────────────────────────────────────────
     if (zones.includes("lake-st-catherine")) {
-      if (isStrongWind) zt("Lake St. Catherine", `${windSpeed}mph ${windDir} — stay tight to the ${windwardBank} and avoid open mid-lake drifts. Chop builds fast on this shallow system.`);
+      if (isStrongWind) zt("Lake St. Catherine", `⚠ ${windSpeed}mph ${windDir} — stay tight to the ${windwardBank} and avoid open mid-lake drifts. Chop builds fast on this shallow system.`);
       if (tideDir === "falling") {
         zt("Lake St. Catherine", "Shell reef edges and cut mouths on south end where current exits toward Borgne. Watch for birds.");
         zt("Lake St. Catherine", "Black drum stacked on shell pads as current moves bait across them — slow-roll or dead-stick a crab.");
@@ -236,7 +236,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       if (tideDir === "falling") zt("Lake Catherine Cuts / Trenasses", `Position just outside the exit on the downcurrent side — ${troutAvailable ? "flounder and trout" : "flounder and reds"} both stack here. Even 0.25ft of drop creates a strong current through a tight throat.`);
       if (tideDir === "rising") zt("Lake Catherine Cuts / Trenasses", "Fish the inside face of the cut as water pushes in — reds and flounder hold on the upcurrent edge.");
       if (tideDir === "slack" && isModerateWind) zt("Lake Catherine Cuts / Trenasses", `No tidal current but ${windDir} wind at ${windSpeed}mph — cuts aligned with the wind will still have some push. Check which cuts face ${windDir} and work those.`);
-      if (isStrongWind) zt("Lake Catherine Cuts / Trenasses", "Strong wind creates standing waves at cut exits in open exposure — approach from the leeward side and anchor before the mouth.");
+      if (isStrongWind) zt("Lake Catherine Cuts / Trenasses", "⚠ Strong wind creates standing waves at cut exits in open exposure — approach from the leeward side and anchor before the mouth.");
       if (season === "winter") zt("Lake Catherine Cuts / Trenasses", "Winter: cuts are the warmest water in the system — current keeps temps slightly higher than the open lake. Reds stacked in the deeper cut throats. Bass on the inside grass edges.");
       if (season === "fall") zt("Lake Catherine Cuts / Trenasses", "Fall: flounder stacking at cut exits ahead of their Gulf migration — one of the best flounder windows of the year. Also prime for reds ambushing from the cut edges.");
     }
@@ -257,7 +257,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       if (tideDir === "falling" && isModerateWind) zt("Chef Pass", `Falling tide with ${windSpeed}mph ${windDir} — position on the downtide/downwind corner of cut mouths where both current and wind funnel bait to the same point.`);
       if (tideDir === "rising" && !(windFromSouth && isStrongWind)) zt("Chef Pass", "Rising tide, manageable wind — north bank of the pass for reds and black drum on grass and shell edges.");
       if (tideDir === "rising" && windFromSouth && isStrongWind) zt("Chef Pass", "⚠ Skip this window — come back on next falling tide or when wind lightens.");
-      if (tideDir === "slack" && isModerateWind) zt("Chef Pass", `Slack tide but ${windDir} wind at ${windSpeed}mph — IWW corridor acts as a wind funnel. Fish the bank the wind hits directly.`);
+      if (tideDir === "slack" && isModerateWind) zt("Chef Pass", `⚠ Slack tide but ${windDir} wind at ${windSpeed}mph — IWW corridor acts as a wind funnel. Fish the bank the wind hits directly.`);
       if (season === "winter") zt("Chef Pass", "Winter: IWW holds some of the warmest moving water in the area — current prevents hard temperature swings. Bass on wood structure inside the IWW. Reds schooled at the pass mouth.");
       if (season === "spring") zt("Chef Pass", "Spring: bass spawning on hard bottom just inside the cuts off IWW — look for beds in 1–3ft of clear water. Reds and trout moving back in as water warms.");
       if (season === "fall") zt("Chef Pass", "Fall: flounder stacking at the Chef Pass mouth and IWW intersections. Work the sandy transition bottom — this is one of the top fall flounder spots in the system.");
