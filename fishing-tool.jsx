@@ -97,13 +97,14 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     );
     const avoid = activeRules.filter(r => r.flag === "avoid").map(r => r.reason);
     const caution = activeRules.filter(r => r.flag === "caution").map(r => r.reason);
-    const isStrongWind = windSpeed >= 10;
-    const isModerateWind = windSpeed > 7;
-    const isLightWind = windSpeed <= 7;
-    const windFromSouth = ["S","SSE","SSW"].includes(windDir);
-    const windFromNorth = ["N","NNE","NNW","NE","NW"].includes(windDir);
-    const windFromEast  = ["E","ESE","SE","NE","ENE"].includes(windDir);
-    const windFromWest  = ["W","WNW","WSW","SW","NW"].includes(windDir);
+    const hasWind = !!windDir;
+    const isStrongWind = hasWind && windSpeed >= 10;
+    const isModerateWind = hasWind && windSpeed > 7;
+    const isLightWind = hasWind && windSpeed <= 7;
+    const windFromSouth = hasWind && ["S","SSE","SSW"].includes(windDir);
+    const windFromNorth = hasWind && ["N","NNE","NNW","NE","NW"].includes(windDir);
+    const windFromEast  = hasWind && ["E","ESE","SE","NE","ENE"].includes(windDir);
+    const windFromWest  = hasWind && ["W","WNW","WSW","SW","NW"].includes(windDir);
     const highRiver     = riverFt !== null && riverFt !== undefined && riverFt > 12;
     const highPearlRiver = pearlRiverFt !== null && pearlRiverFt !== undefined && pearlRiverFt > 10;
     const lowSalinity = salinityPpt !== null && salinityPpt !== undefined && salinityPpt < 5;
@@ -1185,13 +1186,13 @@ export default function FishingTool() {
       return before.h + (min - before.min) / (after.min - before.min) * (after.h - before.h);
     };
     const windAt = min => {
-      if (!windForecast.length) return { windDir: "S", windSpeed: 10 };
+      if (!windForecast.length) return { windDir: "", windSpeed: 0 };
       const w = windForecast.reduce((b,w) => {
         const [wh,wm] = w.time.split(":").map(Number);
         const d = Math.abs(wh*60+wm - min);
         return d < b.d ? {d, w} : b;
       }, {d:Infinity, w:null}).w;
-      return { windDir: w?.dir ?? "S", windSpeed: w?.speed ?? 10 };
+      return { windDir: w?.dir ?? "", windSpeed: w?.speed ?? 0 };
     };
 
     const startMin = toMin(tripStart), endMin = toMin(tripEnd);
