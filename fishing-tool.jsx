@@ -740,6 +740,7 @@ function BlockCard({ block }) {
   const [open, setOpen] = useState(true);
   const hasAvoid = block.avoid.length > 0;
   const hasCaution = block.caution.length > 0;
+  const hasZoneWarning = block.zoneTips.some(t => t.includes("⚠"));
   return (
     <div className={`bc ${block.tideDir}${hasAvoid ? " bw" : ""}`}>
       <div className="bh" onClick={() => setOpen(o => !o)}>
@@ -750,7 +751,8 @@ function BlockCard({ block }) {
           <span className="badge wb">{block.windDir} {block.windSpeed}mph</span>
           {block.tideChange > 0 && <span className="badge" style={{ background: "rgba(255,255,255,0.04)", color: "#5a7a94" }}>Δ{block.tideChange}ft</span>}
           {hasAvoid && <span className="badge" style={{ background: "rgba(224,90,43,0.15)", color: "#e05a2b" }}>⚠ Rule Triggered</span>}
-          {hasCaution && !hasAvoid && <span className="badge" style={{ background: "rgba(200,160,0,0.12)", color: "#c8a000" }}>⚡ Caution</span>}
+          {hasZoneWarning && !hasAvoid && <span className="badge" style={{ background: "rgba(224,90,43,0.15)", color: "#e05a2b" }}>⚠ Zone Warning</span>}
+          {hasCaution && !hasAvoid && !hasZoneWarning && <span className="badge" style={{ background: "rgba(200,160,0,0.12)", color: "#c8a000" }}>⚡ Caution</span>}
         </div>
         <span style={{ fontSize: "0.65rem", color: "#5a7a94" }}>{open ? "▲" : "▼"}</span>
       </div>
@@ -758,7 +760,21 @@ function BlockCard({ block }) {
         <div className="bb">
           {block.strategy.length > 0 && <Section title="Strategy" items={block.strategy} />}
           {block.primarySpecies.length > 0 && <Section title="Target Species" items={block.primarySpecies} color="#00c8a0" />}
-          {block.zoneTips.length > 0 && <Section title="Zone Tips" items={block.zoneTips} />}
+          {block.zoneTips.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.6rem", letterSpacing: 2, textTransform: "uppercase", color: "#5a7a94", marginBottom: 7 }}>Zone Tips</div>
+              <ul style={{ listStyle: "none" }}>
+                {block.zoneTips.map((tip, i) => {
+                  const isWarn = tip.includes("⚠");
+                  return (
+                    <li key={i} style={{ fontSize: "0.855rem", color: isWarn ? "#f08070" : "#d0e4f0", lineHeight: 1.55, paddingLeft: 13, position: "relative", marginBottom: 4 }}>
+                      <span style={{ position: "absolute", left: 0, color: isWarn ? "#e05a2b" : "#00c8a0" }}>{isWarn ? "⚠" : "›"}</span>{tip}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
           {hasCaution && <Section title="⚡ Caution" items={block.caution} color="#c8a000" />}
           {hasAvoid && <Section title="⚠ Avoid" items={block.avoid} color="#e05a2b" textColor="#f08070" />}
         </div>
