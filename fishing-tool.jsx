@@ -1085,12 +1085,19 @@ export default function FishingTool() {
         } catch (e) { log("✗ Wind: " + (e.message || "failed")); }
       })(),
       (async () => {
-        if (!tideStation) return;
-        try {
-          log("Fetching water temp…");
-          setWaterTempF(await fetchWaterTemp(tideStation));
-          log("✓ Water temp");
-        } catch { log("✗ Water temp: unavailable for this station"); }
+        // Try stations in order until one returns water temp data
+        const fallbacks = [...new Set([tideStation, tideStation2, "8761305", "8761724"].filter(Boolean))];
+        let found = false;
+        for (const sid of fallbacks) {
+          try {
+            log("Fetching water temp…");
+            setWaterTempF(await fetchWaterTemp(sid));
+            log("✓ Water temp");
+            found = true;
+            break;
+          } catch {}
+        }
+        if (!found) log("✗ Water temp: unavailable");
       })(),
       (async () => {
         try {
