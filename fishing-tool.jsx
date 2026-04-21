@@ -51,6 +51,25 @@ function pointInPolygon(point, polygon) {
   return inside;
 }
 
+function getMoonPhase(dateStr) {
+  const date = new Date(dateStr + "T12:00:00");
+  const knownNewMoon = new Date("2000-01-06T12:00:00");
+  const daysSince = (date - knownNewMoon) / 86400000;
+  const lunarCycle = 29.53059;
+  const age = ((daysSince % lunarCycle) + lunarCycle) % lunarCycle;
+  const illumination = Math.round((1 - Math.cos(2 * Math.PI * age / lunarCycle)) / 2 * 100);
+  let phase;
+  if (age < 1.85)       phase = "New Moon";
+  else if (age < 7.38)  phase = "Waxing Crescent";
+  else if (age < 9.22)  phase = "First Quarter";
+  else if (age < 14.77) phase = "Waxing Gibbous";
+  else if (age < 16.62) phase = "Full Moon";
+  else if (age < 22.15) phase = "Waning Gibbous";
+  else if (age < 23.99) phase = "Last Quarter";
+  else                  phase = "Waning Crescent";
+  return { phase, illumination, age };
+}
+
 // ─── RULE MATCHING ────────────────────────────────────────────────────────────
 function matchRule(rule, { windDir, windSpeed, tideDir }) {
   const c = rule.conditions;
@@ -62,8 +81,8 @@ function matchRule(rule, { windDir, windSpeed, tideDir }) {
 }
 
 // ─── FISHING LOGIC ENGINE ─────────────────────────────────────────────────────
-function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverFt) {
-  return blocks.map((block) => {
+function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverFt, moonPhase, pressureTrend, waterTempF) {
+  return blocks.map((block, blockIndex) => {
     const { startTime, endTime, tideDir, tideChange, windDir, windSpeed } = block;
     const activeRules = allRules.filter(r =>
       zones.some(z => r.zones.includes(z)) && matchRule(r, { windDir, windSpeed, tideDir })
@@ -89,6 +108,24 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     let strategy = [], primarySpecies = [];
     const zoneMap = {};
     const zt = (label, tip) => { if (!zoneMap[label]) zoneMap[label] = []; zoneMap[label].push(tip); };
+
+    if (blockIndex === 0) {
+      if (moonPhase) {
+        const isMajorMoon = moonPhase.phase === "New Moon" || moonPhase.phase === "Full Moon";
+        const isQuarter   = moonPhase.phase === "First Quarter" || moonPhase.phase === "Last Quarter";
+        if (isMajorMoon) strategy.push(`${moonPhase.phase} (${moonPhase.illumination}% illuminated) — peak solunar period. Expect heightened feeding activity, especially at dawn and dusk windows.`);
+        else if (isQuarter) strategy.push(`${moonPhase.phase} (${moonPhase.illumination}% illuminated) — moderate solunar influence. Productive windows around sunrise and sunset.`);
+        else strategy.push(`${moonPhase.phase} (${moonPhase.illumination}% illuminated) — minor solunar influence. Tidal current and wind will drive bite windows more than moon today.`);
+      }
+      if (pressureTrend === "falling") strategy.push("Falling barometric pressure — fish often feed aggressively ahead of an approaching front. Strong bite window now, but may shut down as the front arrives.");
+      else if (pressureTrend === "rising") strategy.push("Rising pressure — system clearing after a front. Expect a slow start with improving bite through the afternoon as fish recover.");
+      if (waterTempF !== null && waterTempF !== undefined) {
+        if (waterTempF < 55)                          strategy.push(`Water ${waterTempF.toFixed(1)}°F — cold. Trout lethargic and deep. Slow bottom presentations required. Reds still active on dark sun-warmed mud flats. Bass on deeper wood structure.`);
+        else if (waterTempF >= 55 && waterTempF < 65) strategy.push(`Water ${waterTempF.toFixed(1)}°F — cool and prime. Ideal trout temperature — suspending lures and topwater near bait. Reds tailing on sun-warmed flats. Full species mix active.`);
+        else if (waterTempF >= 65 && waterTempF <= 82) strategy.push(`Water ${waterTempF.toFixed(1)}°F — warm and productive. All target species available. Bait concentration matters more than structure type.`);
+        else                                           strategy.push(`Water ${waterTempF.toFixed(1)}°F — very warm. Fish stressed and seeking depth, shade, or higher-flow areas. Early morning bite window critical — shallows go lockjaw by mid-morning.`);
+      }
+    }
 
     if (highRiver || lowSalinity) {
       const reason = highRiver
@@ -342,7 +379,7 @@ function degreesToCardinal(deg) {
 }
 
 async function fetchWindForecast(lat, lng, date, model) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=mph&timezone=America%2FChicago&start_date=${date}&end_date=${date}&models=${model}`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure&wind_speed_unit=mph&timezone=America%2FChicago&start_date=${date}&end_date=${date}&models=${model}`;
   const res = await fetch(url);
   const data = await res.json();
   if (data.error) throw new Error(data.reason || "Wind forecast unavailable.");
@@ -353,7 +390,18 @@ async function fetchWindForecast(lat, lng, date, model) {
     dir: degreesToCardinal(h.wind_direction_10m[i]),
     dirDeg: h.wind_direction_10m[i],
     gust: Math.round(h.wind_gusts_10m[i]),
+    pressure: h.surface_pressure?.[i] ?? null,
   }));
+}
+
+async function fetchWaterTemp(stationId) {
+  const url = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=water_temperature&station=${stationId}&date=latest&time_zone=lst_ldt&units=english&format=json`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  const readings = data.data;
+  if (!readings?.length) throw new Error("No water temp data");
+  return parseFloat(readings[readings.length - 1].v);
 }
 
 // ─── STORAGE HELPERS ──────────────────────────────────────────────────────────
@@ -912,6 +960,9 @@ export default function FishingTool() {
   const [riverLoading, setRiverLoading] = useState(false);
   const [riverErr, setRiverErr] = useState("");
 
+  // Water temp
+  const [waterTempF, setWaterTempF] = useState(null);
+
   // Water quality
   const [waterQuality, setWaterQuality] = useState([]);
   const [wqLoading, setWqLoading] = useState(false);
@@ -985,6 +1036,7 @@ export default function FishingTool() {
     setTripStart(""); setTripEnd("");
     setBlocks([]);
     setTideStation(""); setTideStation2("");
+    setWaterTempF(null);
     setNotes(""); setPlan(null);
   };
 
@@ -1031,6 +1083,14 @@ export default function FishingTool() {
           setWindForecast(wf);
           log("✓ Wind");
         } catch (e) { log("✗ Wind: " + (e.message || "failed")); }
+      })(),
+      (async () => {
+        if (!tideStation) return;
+        try {
+          log("Fetching water temp…");
+          setWaterTempF(await fetchWaterTemp(tideStation));
+          log("✓ Water temp");
+        } catch { log("✗ Water temp: unavailable for this station"); }
       })(),
       (async () => {
         try {
@@ -1170,7 +1230,12 @@ export default function FishingTool() {
   const generate = () => {
     const salReadings = waterQuality.filter(s => s.salNow !== null).map(s => s.salNow);
     const minSalinity = salReadings.length ? Math.min(...salReadings) : null;
-    setPlan(generatePlan(blocks, zones, allRules, riverFt, minSalinity, pearlRiverFt));
+    const moon = tideDate ? getMoonPhase(tideDate) : null;
+    const pressures = windForecast.map(w => w.pressure).filter(Boolean);
+    const pressureTrend = pressures.length >= 6
+      ? (() => { const e = pressures.slice(0,3).reduce((a,b)=>a+b,0)/3; const l = pressures.slice(-3).reduce((a,b)=>a+b,0)/3; return l - e > 1 ? "rising" : l - e < -1 ? "falling" : "steady"; })()
+      : "steady";
+    setPlan(generatePlan(blocks, zones, allRules, riverFt, minSalinity, pearlRiverFt, moon, pressureTrend, waterTempF));
     setTab("plan");
   };
 
@@ -1610,6 +1675,50 @@ export default function FishingTool() {
                       </div>
                     </>
                   )}
+
+                  {tideDate && (() => {
+                    const moon = getMoonPhase(tideDate);
+                    const pressures = windForecast.map(w => w.pressure).filter(Boolean);
+                    const pTrend = pressures.length >= 6
+                      ? (() => { const e = pressures.slice(0,3).reduce((a,b)=>a+b,0)/3; const l = pressures.slice(-3).reduce((a,b)=>a+b,0)/3; return l-e > 1 ? "rising" : l-e < -1 ? "falling" : "steady"; })()
+                      : null;
+                    const curPressure = pressures.length ? Math.round(pressures[0] * 10) / 10 : null;
+                    const moonIcon = { "New Moon":"🌑","Waxing Crescent":"🌒","First Quarter":"🌓","Waxing Gibbous":"🌔","Full Moon":"🌕","Waning Gibbous":"🌖","Last Quarter":"🌗","Waning Crescent":"🌘" }[moon.phase] || "🌙";
+                    const tempColor = waterTempF === null ? "#5a7a94" : waterTempF < 55 ? "#4ab0ff" : waterTempF < 65 ? "#00c8a0" : waterTempF <= 82 ? "#f0a500" : "#e05a2b";
+                    return (
+                      <>
+                        <div className="sl">Conditions</div>
+                        <div className="card" style={{ marginBottom:16 }}>
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+                            <div>
+                              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Moon</div>
+                              <div style={{ fontSize:"1.4rem", lineHeight:1 }}>{moonIcon}</div>
+                              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.63rem", color:"var(--tx)", marginTop:4 }}>{moon.phase}</div>
+                              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"var(--mu)" }}>{moon.illumination}% lit</div>
+                            </div>
+                            <div>
+                              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Pressure</div>
+                              {curPressure ? (
+                                <>
+                                  <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"1rem", color:"var(--tx)", lineHeight:1 }}>{curPressure} <span style={{ fontSize:"0.6rem", color:"var(--mu)" }}>hPa</span></div>
+                                  {pTrend && <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", marginTop:4, color: pTrend==="falling" ? "#e05a2b" : pTrend==="rising" ? "#00c8a0" : "var(--mu)" }}>{pTrend==="falling" ? "▼ Falling" : pTrend==="rising" ? "▲ Rising" : "→ Steady"}</div>}
+                                </>
+                              ) : <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"var(--mu)" }}>Fetch data</div>}
+                            </div>
+                            <div>
+                              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Water Temp</div>
+                              {waterTempF !== null ? (
+                                <>
+                                  <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"1rem", color:tempColor, lineHeight:1 }}>{waterTempF.toFixed(1)}°F</div>
+                                  <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:tempColor, marginTop:4 }}>{waterTempF < 55 ? "Cold" : waterTempF < 65 ? "Cool" : waterTempF <= 82 ? "Warm" : "Hot"}</div>
+                                </>
+                              ) : <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"var(--mu)" }}>Fetch data</div>}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
 
                   {tidePreds.length > 0 && (
                     <>
