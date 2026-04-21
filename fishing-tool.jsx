@@ -101,9 +101,9 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     const lowSalinity = salinityPpt !== null && salinityPpt !== undefined && salinityPpt < 5;
     const troutAvailable = (!highRiver && !lowSalinity) || zones.includes("lake-borgne");
 
-    // Which shoreline the wind stacks bait against
-    const windwardBank = windFromSouth ? "north-facing" : windFromNorth ? "south-facing" : windFromEast ? "west-facing" : "east-facing";
-    const leewardBank  = windFromSouth ? "south-facing" : windFromNorth ? "north-facing" : windFromEast ? "east-facing" : "west-facing";
+    // Bank wind pushes bait against (downwind accumulation)
+    const windwardBank = windFromSouth ? "north bank" : windFromNorth ? "south bank" : windFromEast ? "west bank" : "east bank";
+    const leewardBank  = windFromSouth ? "south bank" : windFromNorth ? "north bank" : windFromEast ? "east bank" : "west bank";
 
     let strategy = [], primarySpecies = [];
     const zoneMap = {};
@@ -143,9 +143,9 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       strategy.push("Slack water — tidal current near zero. Fish are transitioning, not ambushing.");
       if (isModerateWind) {
         strategy.push(`Wind at ${windSpeed}mph is now the dominant current — treat this like a wind tide.`);
-        strategy.push(`Fish ${windwardBank} shorelines where bait is being pushed and stacked. Work the grass edge and any points that break the wind line.`);
+        strategy.push(`Fish the ${windwardBank} where bait is being pushed and stacked. Work the grass edge and any points that break the wind line.`);
         if (isStrongWind) strategy.push(`Avoid exposed open water — stay in protected cuts and behind-island shorelines to manage the chop.`);
-        strategy.push(`${leewardBank.charAt(0).toUpperCase() + leewardBank.slice(1)} banks are calm but dead — bait is on the opposite side.`);
+        strategy.push(`${leewardBank.charAt(0).toUpperCase() + leewardBank.slice(1)} is calm but dead — bait is on the opposite side.`);
       } else {
         strategy.push("Light wind and no tidal push — use this window to run to your next location and scout structure on the depth finder.");
         strategy.push("Expect 30–60 min of slow action depending on tidal amplitude.");
@@ -157,7 +157,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       if (tideChange <= 0.5) strategy.push("Weak drop — current subtle. Focus on tightest pinch points for maximum bait concentration.");
       if (isModerateWind) {
         strategy.push(`${windSpeed}mph ${windDir} wind adding chop — position so the wind pushes bait into the drain mouth alongside the tide.`);
-        strategy.push(`${windwardBank.charAt(0).toUpperCase() + windwardBank.slice(1)} bank edges will hold the most bait. Target cut exits on that side first.`);
+        strategy.push(`${windwardBank.charAt(0).toUpperCase() + windwardBank.slice(1)} edges will hold the most bait. Target cut exits on that side first.`);
         if (isStrongWind) strategy.push("Strong wind can override weak tidal current — prioritize cuts that are aligned with wind direction for maximum bait push.");
       } else {
         if (windFromSouth) strategy.push("Light S wind reinforcing outflow — slight boost to current through cuts.");
@@ -175,8 +175,8 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       strategy.push("Don't sit on drain mouths — fish have moved up. Follow them shallower.");
       if (tideChange <= 0.5) strategy.push("Weak rise — wind-driven current is your friend. Work windward banks where bait is piling up.");
       if (isModerateWind) {
-        strategy.push(`${windSpeed}mph ${windDir} wind stacking bait on ${windwardBank} shorelines — prioritize those banks over neutral structure.`);
-        if (isStrongWind) strategy.push(`Avoid ${leewardBank} exposed open water. Stay in protected cuts and wind-shadow edges where fish are comfortable.`);
+        strategy.push(`${windSpeed}mph ${windDir} wind stacking bait on the ${windwardBank} — prioritize that bank over neutral structure.`);
+        if (isStrongWind) strategy.push(`Avoid the ${leewardBank} exposed open water. Stay in protected cuts and wind-shadow edges where fish are comfortable.`);
         if (windFromEast) {
           if (troutAvailable) strategy.push("East wind keeps this system clean — favorable for trout on shell reef edges and windward points.");
           else strategy.push("East wind keeps this system clean — favorable visibility, but salinity too low for trout. Work reds and drum on shell.");
@@ -196,14 +196,14 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
 
     // ─── ZONE TIPS ───────────────────────────────────────────────────────────
     if (zones.includes("lake-st-catherine")) {
-      if (isStrongWind) zt("Lake St. Catherine", `${windSpeed}mph ${windDir} — stay tight to the ${windwardBank} shoreline and avoid open mid-lake drifts. Chop builds fast on this shallow system.`);
+      if (isStrongWind) zt("Lake St. Catherine", `${windSpeed}mph ${windDir} — stay tight to the ${windwardBank} and avoid open mid-lake drifts. Chop builds fast on this shallow system.`);
       if (tideDir === "falling") {
         zt("Lake St. Catherine", "Shell reef edges and cut mouths on south end where current exits toward Borgne. Watch for birds.");
         zt("Lake St. Catherine", "Black drum stacked on shell pads as current moves bait across them — slow-roll or dead-stick a crab.");
       }
       if (tideDir === "rising" && windFromSouth) zt("Lake St. Catherine", `South wind piles bait on north shoreline — work those grass edges for reds${troutAvailable ? " and trout" : ""}.`);
       if (tideDir === "rising" && !windFromSouth) zt("Lake St. Catherine", "Drift shell reefs and grass points as water refills from Borgne side. Black drum active on the reefs.");
-      if (tideDir === "slack" && isModerateWind) zt("Lake St. Catherine", `Slack tide but ${windSpeed}mph ${windDir} — fish the ${windwardBank} bank. Wind is the only current right now.`);
+      if (tideDir === "slack" && isModerateWind) zt("Lake St. Catherine", `Slack tide but ${windSpeed}mph ${windDir} — fish the ${windwardBank}. Wind is the only current right now.`);
     }
     if (zones.includes("lake-catherine-cuts")) {
       if (tideDir === "falling") zt("Lake Catherine Cuts / Trenasses", `Position just outside the exit on the downcurrent side — ${troutAvailable ? "flounder and trout" : "flounder and reds"} both stack here. Even 0.25ft of drop creates a strong current through a tight throat.`);
@@ -215,7 +215,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       if (isStrongWind) zt("Lake Borgne", `⚠ ${windSpeed}mph ${windDir} — open water gets dangerous fast. Stay inside 1 mile of the shoreline and keep a bailout route to the cut system.`);
       if (tideDir === "falling") zt("Lake Borgne", "Work shell reef edges and points on the west end where current pushes bait out. Trout active in cleaner water — look for birds.");
       if (tideDir === "rising") zt("Lake Borgne", "Shell reefs on the north and west shoreline as water rises. Trout and reds stacking on the upcurrent face.");
-      if (tideDir === "slack" && isModerateWind) zt("Lake Borgne", `Slack tide — wind at ${windSpeed}mph is driving bait onto ${windwardBank} shell reefs. Work those edges.`);
+      if (tideDir === "slack" && isModerateWind) zt("Lake Borgne", `Slack tide — wind at ${windSpeed}mph is driving bait onto the ${windwardBank} shell reefs. Work those edges.`);
       if (highRiver) zt("Lake Borgne", "Best salinity refuge in the system right now — cleaner water than the interior marsh. Trout pushed here from the west.");
     }
     if (zones.includes("chef-pass")) {
@@ -230,7 +230,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     if (zones.includes("mrgo-interior")) {
       if (tideDir === "falling") zt("MRGO Marsh", "Interior pond edges and drain mouths. Gardner Island tide runs ~4hrs ahead of Shell Beach — verify which tide phase you're actually on.");
       if (tideDir === "rising") zt("MRGO Marsh", "Shallow pond edges and grass lines as water rises. Look for tailing reds and black drum rooting on shell.");
-      if (isModerateWind) zt("MRGO Marsh", `Interior ponds are protected — use the marsh as a wind break. Fish the ${windwardBank} bank of each pond for stacked bait.`);
+      if (isModerateWind) zt("MRGO Marsh", `Interior ponds are protected — use the marsh as a wind break. Fish the ${windwardBank} of each pond for stacked bait.`);
     }
     if (zones.includes("pearl-river")) {
       if (highPearlRiver) {
