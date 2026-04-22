@@ -1007,6 +1007,9 @@ export default function FishingTool() {
   const [plan, setPlan] = useState(null);
   const [userRules, setUserRules] = useState([]);
   const [trips, setTrips] = useState([]);
+  const [savedPresets, setSavedPresets] = useState([]);
+  const [presetNameInput, setPresetNameInput] = useState("");
+  const [showPresetInput, setShowPresetInput] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
 
@@ -1062,6 +1065,11 @@ export default function FishingTool() {
         const snap = await getDocs(q);
         const cloud = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (cloud.length) setTrips(cloud);
+      } catch {}
+      try {
+        const pSnap = await getDocs(collection(db, "users", user.uid, "savedPresets"));
+        const presets = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (presets.length) setSavedPresets(presets);
       } catch {}
       try {
         const rSnap = await getDocs(collection(db, "sharedRules"));
@@ -1404,6 +1412,33 @@ export default function FishingTool() {
     }
   };
 
+  const savePreset = async () => {
+    const name = presetNameInput.trim();
+    if (!name || !currentUser) return;
+    if (savedPresets.length >= 3) return;
+    const preset = { id: `preset-${Date.now()}`, name, coords, zones, tideStation, tideStation2, blendWeight, savedAt: Date.now() };
+    const updated = [...savedPresets, preset];
+    setSavedPresets(updated);
+    setPresetNameInput("");
+    setShowPresetInput(false);
+    try { await setDoc(doc(db, "users", currentUser.uid, "savedPresets", preset.id), preset); } catch {}
+  };
+
+  const loadPreset = p => {
+    setCoords(p.coords);
+    setZones(p.zones);
+    if (p.tideStation) setTideStation(p.tideStation);
+    if (p.tideStation2 !== undefined) setTideStation2(p.tideStation2);
+    if (p.blendWeight !== undefined) setBlendWeight(p.blendWeight);
+  };
+
+  const deletePreset = async id => {
+    setSavedPresets(p => p.filter(x => x.id !== id));
+    if (currentUser) {
+      try { await deleteDoc(doc(db, "users", currentUser.uid, "savedPresets", id)); } catch {}
+    }
+  };
+
   const loadTrip = t => {
     setBlocks(t.blocks); setZones(t.zones); setCoords(t.coords); setNotes(t.notes || ""); setPlan(t.plan);
     if (t.riverFt !== undefined) setRiverFt(t.riverFt);
@@ -1539,6 +1574,38 @@ export default function FishingTool() {
           {/* SETUP */}
           {tab === "setup" && (
             <>
+              {/* ── SAVED PRESETS ─────────────────────────────── */}
+              {currentUser && (
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", letterSpacing:2, textTransform:"uppercase", color:"var(--mu)" }}>Saved Zones ({savedPresets.length}/3)</div>
+                    {savedPresets.length < 3 && !showPresetInput && (
+                      <button className="rm-btn" style={{ color:"var(--ac)", borderColor:"var(--ac)" }} onClick={() => setShowPresetInput(true)}>+ Save Current</button>
+                    )}
+                  </div>
+                  {showPresetInput && (
+                    <div style={{ display:"flex", gap:7, marginBottom:8 }}>
+                      <input value={presetNameInput} onChange={e => setPresetNameInput(e.target.value)} placeholder="Preset name (e.g. Home Marsh)" onKeyDown={e => e.key === "Enter" && savePreset()} style={{ flex:1 }} />
+                      <button className="btn btn-primary" style={{ padding:"6px 14px", fontSize:"0.75rem" }} onClick={savePreset}>Save</button>
+                      <button className="btn btn-secondary" style={{ padding:"6px 10px", fontSize:"0.75rem" }} onClick={() => { setShowPresetInput(false); setPresetNameInput(""); }}>✕</button>
+                    </div>
+                  )}
+                  {savedPresets.length > 0 && (
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                      {savedPresets.map(p => (
+                        <div key={p.id} style={{ display:"flex", alignItems:"center", gap:0, background:"var(--bg)", border:"1px solid var(--bd)", borderRadius:8, overflow:"hidden" }}>
+                          <button onClick={() => loadPreset(p)} style={{ background:"none", border:"none", color:"var(--ac)", fontFamily:"IBM Plex Mono,monospace", fontSize:"0.72rem", padding:"6px 12px", cursor:"pointer" }}>{p.name}</button>
+                          <button onClick={() => deletePreset(p.id)} style={{ background:"none", border:"none", borderLeft:"1px solid var(--bd)", color:"#5a7a94", fontSize:"0.7rem", padding:"6px 9px", cursor:"pointer" }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {savedPresets.length === 0 && !showPresetInput && (
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.72rem", color:"#5a7a94" }}>No presets saved yet. Set up your zones and tide stations, then save.</div>
+                  )}
+                </div>
+              )}
+
               {/* ── TRIP DETAILS ─────────────────────────────── */}
               <div className="sl">Trip Details</div>
               <div className="card" style={{ marginBottom:18 }}>
