@@ -999,6 +999,7 @@ export default function FishingTool() {
   const [tab, setTab] = useState("setup");
   const [coords, setCoords] = useState([{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}]);
   const [zones, setZones] = useState(["lake-borgne"]);
+  const [mapExpanded, setMapExpanded] = useState(false);
   const [tripStart, setTripStart] = useState("");
   const [tripEnd,   setTripEnd]   = useState("");
   const [blocks, setBlocks] = useState([]);
@@ -1630,6 +1631,21 @@ export default function FishingTool() {
                       {ZONES.map(z => <div key={z.id} className={`zp ${zones.includes(z.id)?"on":""}`} onClick={() => togZone(z.id)}>{z.label}</div>)}
                     </div>
                   </div>
+
+                  <div
+                    onClick={() => setMapExpanded(p => !p)}
+                    style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", marginBottom: mapExpanded ? 6 : 0, marginTop:14 }}
+                  >
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", letterSpacing:2, textTransform:"uppercase", color:"var(--mu)" }}>
+                      {mapExpanded ? "▲ Hide Map" : "▼ Show Map"}
+                    </div>
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#5a7a94" }}>Click map to add/move points</div>
+                  </div>
+                  {mapExpanded && (
+                    <div style={{ marginBottom:14 }}>
+                      <MapView coords={coords} selectedZones={zones} onCoordsChange={handleCoordsChange} />
+                    </div>
+                  )}
 
                   {windForecast.length > 0 && (
                     <>
