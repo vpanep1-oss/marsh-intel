@@ -848,7 +848,7 @@ function FeedbackModal({ plan, zones, onSave, onClose }) {
         });
       }
     });
-    onSave(newRules, { general, targetSpecies, otherSpeciesText, catchLog, rating });
+    onSave(newRules, { general, targetSpecies, otherSpeciesText, catchLog, rating }, fbs);
     onClose();
   };
 
@@ -1340,11 +1340,35 @@ export default function FishingTool() {
     });
   };
 
-  const saveFeedback = async (newRules, debrief) => {
-    const updated = [...userRules, ...newRules];
+  const saveFeedback = async (newRules, debrief, blockFeedbacks) => {
+    // Compute confidence updates from block feedbacks
+    const ruleUpdates = {};
+    if (blockFeedbacks?.length && plan) {
+      blockFeedbacks.forEach((fb, i) => {
+        const block = plan[i];
+        if (!block) return;
+        userRules.forEach(rule => {
+          if (zones.some(z => rule.zones.includes(z)) && matchRule(rule, block)) {
+            if (!ruleUpdates[rule.id]) ruleUpdates[rule.id] = { confirms: rule.confirms || 0, contradicts: rule.contradicts || 0 };
+            fb.worked === "yes" ? ruleUpdates[rule.id].contradicts++ : ruleUpdates[rule.id].confirms++;
+          }
+        });
+      });
+    }
+
+    const newRulesWithCounters = newRules.map(r => ({ ...r, confirms: 0, contradicts: 0 }));
+    const updated = [
+      ...userRules.map(r => ruleUpdates[r.id] ? { ...r, ...ruleUpdates[r.id] } : r),
+      ...newRulesWithCounters,
+    ];
     setUserRules(updated); await storageSet("user_rules", updated);
     if (currentUser) {
-      try { await Promise.all(newRules.map(r => setDoc(doc(db, "sharedRules", String(r.id)), { ...r, addedBy: currentUser.email }))); } catch {}
+      try {
+        await Promise.all([
+          ...newRulesWithCounters.map(r => setDoc(doc(db, "sharedRules", String(r.id)), { ...r, addedBy: currentUser.email })),
+          ...Object.entries(ruleUpdates).map(([id, counts]) => setDoc(doc(db, "sharedRules", id), counts, { merge: true })),
+        ]);
+      } catch {}
     }
     const tripId = String(Date.now());
     const trip = { id: tripId, date: new Date().toLocaleDateString(), coords, zones, blocks, notes, plan, riverFt, tideStation, tideDate, createdAt: Date.now(), debriefed: true, debrief };
@@ -1896,32 +1920,64 @@ export default function FishingTool() {
           {tab === "rules" && !currentUser && (
             <div style={{ textAlign:"center", padding:"60px 20px", fontFamily:"IBM Plex Mono,monospace", color:"var(--mu)", fontSize:"0.78rem" }}>Sign in to view the Rules DB.</div>
           )}
-          {tab === "rules" && currentUser && (
-            <>
-              <div className="sl">Built-In Rules</div>
-              {BUILTIN_RULES.map(r => (
-                <div key={r.id} className="rc bi">
-                  <div className="rtitle" style={{ color:"var(--wn)" }}>{r.label} — {r.flag.toUpperCase()}</div>
-                  <div className="rdesc">{r.reason}</div>
-                  <div className="rmeta">Source: {r.source} · {r.date} · Zones: {r.zones.join(", ")}</div>
-                </div>
-              ))}
-              <div className="sl" style={{ marginTop:18 }}>User Rules from Trip Feedback</div>
-              {userRules.length === 0 && <p style={{ color:"var(--mu)", fontFamily:"IBM Plex Mono,monospace", fontSize:"0.76rem", marginBottom:14 }}>No user rules yet. Complete a Post-Trip Debrief after your next trip.</p>}
-              {userRules.map(r => (
-                <div key={r.id} className="rc ur">
+          {tab === "rules" && currentUser && (() => {
+            const confBadge = r => {
+              const t = (r.confirms || 0) + (r.contradicts || 0);
+              if (!t) return null;
+              const pct = Math.round((r.confirms || 0) / t * 100);
+              const color = pct >= 70 ? "#00c8a0" : pct >= 40 ? "#c8a000" : "#e05a2b";
+              return { pct, t, color, confirms: r.confirms || 0, contradicts: r.contradicts || 0 };
+            };
+            const needsReview = userRules.filter(r => {
+              const t = (r.confirms || 0) + (r.contradicts || 0);
+              return t >= 2 && (r.contradicts || 0) > (r.confirms || 0);
+            });
+            const RuleCard = ({ r, deletable }) => {
+              const cb = confBadge(r);
+              return (
+                <div className="rc ur">
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
-                    <div>
-                      <div className="rtitle" style={{ color:"var(--bl)" }}>{r.label} — {r.flag.toUpperCase()}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:3 }}>
+                        <span className="rtitle" style={{ color:"var(--bl)" }}>{r.label} — {r.flag.toUpperCase()}</span>
+                        {cb && (
+                          <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", padding:"2px 8px", borderRadius:10, border:`1px solid ${cb.color}33`, color: cb.color, background:`${cb.color}11` }}>
+                            {cb.confirms}↑ {cb.contradicts}↓ · {cb.pct}%
+                          </span>
+                        )}
+                        {cb && cb.pct < 40 && <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"#e05a2b" }}>Needs Review</span>}
+                      </div>
                       <div className="rdesc">{r.reason}</div>
                       <div className="rmeta">Added: {r.date} · Zones: {r.zones.join(", ")} · Wind: {r.conditions.windDirs?.join("/")} {r.conditions.windSpeedMin}+mph · Tide: {r.conditions.tideDir}</div>
                     </div>
-                    <button className="del-btn" onClick={() => deleteRule(r.id)}>✕</button>
+                    {deletable && <button className="del-btn" onClick={() => deleteRule(r.id)}>✕</button>}
                   </div>
                 </div>
-              ))}
-            </>
-          )}
+              );
+            };
+            return (
+              <>
+                {needsReview.length > 0 && (
+                  <>
+                    <div className="sl" style={{ color:"#e05a2b" }}>⚠ Needs Review</div>
+                    <p style={{ color:"var(--mu)", fontFamily:"IBM Plex Mono,monospace", fontSize:"0.73rem", marginBottom:10, lineHeight:1.5 }}>These rules have been contradicted by more trips than they've been confirmed. Consider updating or removing them.</p>
+                    {needsReview.map(r => <RuleCard key={r.id} r={r} deletable />)}
+                  </>
+                )}
+                <div className="sl" style={{ marginTop: needsReview.length ? 18 : 0 }}>Built-In Rules</div>
+                {BUILTIN_RULES.map(r => (
+                  <div key={r.id} className="rc bi">
+                    <div className="rtitle" style={{ color:"var(--wn)" }}>{r.label} — {r.flag.toUpperCase()}</div>
+                    <div className="rdesc">{r.reason}</div>
+                    <div className="rmeta">Source: {r.source} · {r.date} · Zones: {r.zones.join(", ")}</div>
+                  </div>
+                ))}
+                <div className="sl" style={{ marginTop:18 }}>User Rules from Trip Feedback</div>
+                {userRules.length === 0 && <p style={{ color:"var(--mu)", fontFamily:"IBM Plex Mono,monospace", fontSize:"0.76rem", marginBottom:14 }}>No user rules yet. Complete a Post-Trip Debrief after your next trip.</p>}
+                {userRules.map(r => <RuleCard key={r.id} r={r} deletable />)}
+              </>
+            );
+          })()}
 
           {/* HISTORY */}
           {tab === "history" && !currentUser && (
