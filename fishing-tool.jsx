@@ -1018,6 +1018,7 @@ function FeedbackModal({ plan, zones, onSave, onClose }) {
 export default function FishingTool() {
   const [tab, setTab] = useState("setup");
   const [coords, setCoords] = useState([{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}]);
+  const coordsRef = useRef([{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}]);
   const [zones, setZones] = useState(["lake-borgne"]);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [tripStart, setTripStart] = useState("");
@@ -1112,7 +1113,11 @@ export default function FishingTool() {
 
   const emptyCoords = [{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}];
 
-  const handleCoordsChange = (newCoords) => {
+  const handleCoordsChange = (newCoordsOrUpdater) => {
+    const newCoords = typeof newCoordsOrUpdater === "function"
+      ? newCoordsOrUpdater(coordsRef.current)
+      : newCoordsOrUpdater;
+    coordsRef.current = newCoords;
     setCoords(newCoords);
     const poly = newCoords
       .filter(c => c.lat !== "" && c.lng !== "" && !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lng)))
