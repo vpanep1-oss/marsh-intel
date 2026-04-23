@@ -1817,47 +1817,31 @@ export default function FishingTool() {
                 )}
               </div>
 
-              <div className="two">
-                {/* LEFT: Coords + Zones + Wind Forecast */}
-                <div>
-                  <div className="sl">Boundary Coordinates</div>
-                  <div className="card">
-                    <div className="cgrid">
-                      {coords.map((c, i) => (
-                        <div key={i} className="crow">
-                          <span className="clbl">P{i+1}</span>
-                          <input placeholder="Lat" value={c.lat} onChange={e => handleCoordsChange(coords.map((x,j) => j===i?{...x,lat:e.target.value}:x))} />
-                          <input placeholder="Lng" value={c.lng} onChange={e => handleCoordsChange(coords.map((x,j) => j===i?{...x,lng:e.target.value}:x))} />
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ display:"flex", gap:7, marginTop:9 }}>
-                      <button className="rm-btn" style={{ color:"var(--ac)", borderColor:"var(--ac)" }} onClick={() => setCoords(p => [...p,{lat:"",lng:""}])}>+ Point</button>
-                      {coords.length > 2 && <button className="rm-btn" onClick={() => setCoords(p => p.slice(0,-1))}>− Last</button>}
-                    </div>
-                  </div>
+              {/* ── FULL-WIDTH MAP ── */}
+              <div
+                onClick={() => setMapExpanded(p => !p)}
+                style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", marginBottom: mapExpanded ? 6 : 0, marginTop:4, marginBottom:8 }}
+              >
+                <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", letterSpacing:2, textTransform:"uppercase", color:"var(--mu)" }}>
+                  {mapExpanded ? "▲ Hide Map" : "▼ Show Map"}
+                </div>
+                <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#5a7a94" }}>Click map to add/move points · Edit coords on Map tab</div>
+              </div>
+              {mapExpanded && (
+                <div style={{ marginBottom:16 }}>
+                  <MapView coords={coords} selectedZones={zones} onCoordsChange={handleCoordsChange} />
+                </div>
+              )}
 
+              <div className="two">
+                {/* LEFT: Zones + Wind Forecast */}
+                <div>
                   <div className="sl">Zones in Area</div>
                   <div className="card">
                     <div className="zpills">
                       {ZONES.map(z => <div key={z.id} className={`zp ${zones.includes(z.id)?"on":""}`} onClick={() => togZone(z.id)}>{z.label}</div>)}
                     </div>
                   </div>
-
-                  <div
-                    onClick={() => setMapExpanded(p => !p)}
-                    style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", marginBottom: mapExpanded ? 6 : 0, marginTop:14 }}
-                  >
-                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", letterSpacing:2, textTransform:"uppercase", color:"var(--mu)" }}>
-                      {mapExpanded ? "▲ Hide Map" : "▼ Show Map"}
-                    </div>
-                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#5a7a94" }}>Click map to add/move points</div>
-                  </div>
-                  {mapExpanded && (
-                    <div style={{ marginBottom:14 }}>
-                      <MapView coords={coords} selectedZones={zones} onCoordsChange={handleCoordsChange} />
-                    </div>
-                  )}
 
                   {windForecast.length > 0 && (
                     <>
@@ -2126,6 +2110,22 @@ export default function FishingTool() {
           {/* MAP */}
           {tab === "map" && (
             <>
+              <div className="sl">Boundary Coordinates</div>
+              <div className="card" style={{ marginBottom:16 }}>
+                <div className="cgrid">
+                  {coords.map((c, i) => (
+                    <div key={i} className="crow">
+                      <span className="clbl">P{i+1}</span>
+                      <input placeholder="Lat" value={c.lat} onChange={e => handleCoordsChange(coords.map((x,j) => j===i?{...x,lat:e.target.value}:x))} />
+                      <input placeholder="Lng" value={c.lng} onChange={e => handleCoordsChange(coords.map((x,j) => j===i?{...x,lng:e.target.value}:x))} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display:"flex", gap:7, marginTop:9 }}>
+                  <button className="rm-btn" style={{ color:"var(--ac)", borderColor:"var(--ac)" }} onClick={() => setCoords(p => [...p,{lat:"",lng:""}])}>+ Point</button>
+                  {coords.length > 2 && <button className="rm-btn" onClick={() => setCoords(p => p.slice(0,-1))}>− Last</button>}
+                </div>
+              </div>
               <div className="sl">Fishing Zone Map</div>
               <p style={{ fontSize:"0.8rem", color:"var(--mu)", marginBottom:13, lineHeight:1.6 }}>Blue polygon = your coordinate boundary. Teal circles = selected zones.</p>
               <MapView coords={coords} selectedZones={zones} onCoordsChange={handleCoordsChange} />
