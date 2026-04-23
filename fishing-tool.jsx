@@ -51,6 +51,26 @@ function pointInPolygon(point, polygon) {
   return inside;
 }
 
+function haversineMiles(p1, p2) {
+  const R = 3958.8;
+  const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+  const dLng = (p2.lng - p1.lng) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(p1.lat*Math.PI/180) * Math.cos(p2.lat*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function distToPolygonEdge(point, polygon) {
+  let min = Infinity;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[j], b = polygon[i];
+    const dx = b.lng - a.lng, dy = b.lat - a.lat;
+    const lenSq = dx*dx + dy*dy;
+    const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((point.lng-a.lng)*dx + (point.lat-a.lat)*dy) / lenSq));
+    min = Math.min(min, haversineMiles(point, { lat: a.lat + t*dy, lng: a.lng + t*dx }));
+  }
+  return min;
+}
+
 function getMoonPhase(dateStr) {
   const date = new Date(dateStr + "T12:00:00");
   const knownNewMoon = new Date("2000-01-06T12:00:00");
@@ -1098,7 +1118,7 @@ export default function FishingTool() {
       .filter(c => c.lat !== "" && c.lng !== "" && !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lng)))
       .map(c => ({ lat: parseFloat(c.lat), lng: parseFloat(c.lng) }));
     const auto = poly.length >= 3
-      ? ZONES.filter(z => z.id === "lake-borgne" || pointInPolygon({ lat: z.lat, lng: z.lng }, poly)).map(z => z.id)
+      ? ZONES.filter(z => z.id === "lake-borgne" || pointInPolygon({ lat: z.lat, lng: z.lng }, poly) || distToPolygonEdge({ lat: z.lat, lng: z.lng }, poly) <= 1).map(z => z.id)
       : ["lake-borgne"];
     setZones(auto);
   };
