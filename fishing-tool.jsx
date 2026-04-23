@@ -90,6 +90,76 @@ function getMoonPhase(dateStr) {
   return { phase, illumination, age };
 }
 
+// ─── ZONE SCORING ─────────────────────────────────────────────────────────────
+function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, salinityPpt }) {
+  const sBadWind = ["S","SSW","SSE"].includes(windDir) && windSpeed >= 10;
+  const eWind    = ["E","ESE","SE","ENE"].includes(windDir);
+  let s = 5;
+  if (zoneId === "lake-st-catherine") {
+    if (tideDir === "falling") s += 2; else if (tideDir === "rising") s += 1;
+    if (windSpeed >= 15) s -= 3; else if (windSpeed <= 7) s += 1;
+    if (season === "fall" || season === "spring") s += 1;
+    if (highRiver) s -= 1;
+  } else if (zoneId === "lake-catherine-cuts") {
+    if (tideDir === "falling") s += 3; else if (tideDir === "rising") s += 1;
+    if (windSpeed >= 15) s -= 2;
+    if (season === "fall") s += 1;
+  } else if (zoneId === "chef-pass") {
+    if (tideDir === "falling") s += 2;
+    else if (tideDir === "rising" && !sBadWind) s += 1;
+    if (sBadWind && tideDir === "rising") s -= 4;
+    if (season === "spring" || season === "fall") s += 1;
+  } else if (zoneId === "lake-borgne") {
+    if (tideDir === "falling") s += 2;
+    if (eWind) s += 2;
+    if (windSpeed >= 15) s -= 3;
+    if (highRiver) s += 2;
+    if (!salinityPpt || salinityPpt >= 5) s += 1;
+  } else if (zoneId === "mrgo-interior") {
+    if (tideDir === "rising") s += 2;
+    if (windSpeed >= 12) s += 1;
+    if (season === "fall") s += 2; else if (season === "spring") s += 1;
+    if (highRiver) s -= 2;
+  } else if (zoneId === "pearl-river") {
+    if (highPearlRiver) s += 2;
+    if (windSpeed >= 12) s += 2;
+    if (season === "fall" || season === "spring") s += 1;
+  }
+  return Math.max(0, Math.min(10, s));
+}
+
+function getBestSpot(zoneId, { tideDir, windwardBank, highPearlRiver }) {
+  if (zoneId === "lake-st-catherine") {
+    if (tideDir === "falling") return { spot: "South-end shell reef edges and cut mouths", reason: "Falling tide pulls bait toward Borgne — predators stack at the exits" };
+    if (tideDir === "rising")  return { spot: `${windwardBank} shoreline grass edge and potholes`, reason: "Water refilling from the east, wind concentrating bait on the windward bank" };
+    return { spot: `${windwardBank} grass edge`, reason: "Slack water — wind is the only current, fish the windward side" };
+  }
+  if (zoneId === "lake-catherine-cuts") {
+    if (tideDir === "falling") return { spot: "Downcurrent face of cut exits", reason: "Bait funnels out — flounder, trout, and reds stack just outside the mouth" };
+    if (tideDir === "rising")  return { spot: "Inside (upcurrent) face of cut throats", reason: "Reds and flounder hold on the upcurrent lip as water pushes in" };
+    return { spot: "Cuts aligned with the wind", reason: "No tidal push — wind-aligned cuts still have current through the throat" };
+  }
+  if (zoneId === "chef-pass") {
+    if (tideDir === "falling") return { spot: "Cut mouth intersections with the IWW channel", reason: "Current rips form at junctions — predators ambush bait pushed out by the tide" };
+    if (tideDir === "rising")  return { spot: "North bank grass and shell edges inside the pass", reason: "Rising tide activates grass edges along the north bank" };
+    return { spot: `${windwardBank} of the IWW corridor`, reason: "Wind funnels through the IWW — fish the bank the wind hits directly" };
+  }
+  if (zoneId === "lake-borgne") {
+    if (tideDir === "falling") return { spot: "West-end shell reef edges and current points", reason: "Falling tide pushes bait off the reefs — trout and reds on the downcurrent side" };
+    if (tideDir === "rising")  return { spot: "North and west shoreline shell reefs", reason: "Upcurrent face as water rises — trout and reds stacking on the lip" };
+    return { spot: `${windwardBank} shell reefs`, reason: "Slack tide — wind driving bait onto these reefs right now" };
+  }
+  if (zoneId === "mrgo-interior") {
+    if (tideDir === "rising") return { spot: "Shallow pond edges and grass lines", reason: "Water fills the interior — tailing reds and drum rooting on the grass edge" };
+    return { spot: "Interior pond drain mouths and channel edges", reason: "Falling tide concentrates fish at drain exits and ledges" };
+  }
+  if (zoneId === "pearl-river") {
+    if (highPearlRiver) return { spot: "Wood structure and hydrilla edges in river bends", reason: "High water activates largemouth — work structure tight with reaction baits" };
+    return { spot: "Lower brackish stretch near the river mouth", reason: "Transition zone holds both reds and bass — most productive stretch in normal conditions" };
+  }
+  return null;
+}
+
 // ─── RULE MATCHING ────────────────────────────────────────────────────────────
 function matchRule(rule, { windDir, windSpeed, tideDir }) {
   const c = rule.conditions;
@@ -307,7 +377,31 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
 
     const zoneTips = Object.entries(zoneMap).map(([label, tips]) => ({ label, tips }));
 
-    return { startTime, endTime, tideDir, tideChange, windDir, windSpeed, strategy, primarySpecies, zoneTips, avoid, caution };
+    // ── Where to fish + cross-zone recommendations ──────────────────────────
+    const blockCond = { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, salinityPpt };
+    const spotCond  = { tideDir, windwardBank, highPearlRiver };
+
+    const whereToFish = zones
+      .map(zid => {
+        const z = ZONES.find(x => x.id === zid);
+        const spot = getBestSpot(zid, spotCond);
+        return spot ? { zoneId: zid, zone: z?.label ?? zid, score: scoreZone(zid, blockCond), ...spot } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+
+    const bestScore = whereToFish[0]?.score ?? 0;
+    const betterZones = ZONES
+      .filter(z => !zones.includes(z.id))
+      .map(z => {
+        const spot = getBestSpot(z.id, spotCond);
+        return spot ? { zoneId: z.id, zone: z.label, score: scoreZone(z.id, blockCond), ...spot } : null;
+      })
+      .filter(z => z && z.score >= bestScore + 2)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 2);
+
+    return { startTime, endTime, tideDir, tideChange, windDir, windSpeed, strategy, primarySpecies, zoneTips, whereToFish, betterZones, avoid, caution };
   });
 }
 
@@ -778,6 +872,32 @@ function BlockCard({ block }) {
       </div>
       {open && (
         <div className="bb">
+          {/* WHERE TO FISH */}
+          {block.whereToFish?.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.6rem", letterSpacing: 2, textTransform: "uppercase", color: "#5a7a94", marginBottom: 7 }}>Where to Fish</div>
+              <ul style={{ listStyle: "none" }}>
+                {block.whereToFish.map((w, i) => (
+                  <li key={i} style={{ fontSize: "0.855rem", lineHeight: 1.55, paddingLeft: 20, position: "relative", marginBottom: 6 }}>
+                    <span style={{ position: "absolute", left: 0, fontFamily: "IBM Plex Mono, monospace", fontSize: "0.65rem", color: i === 0 ? "#f0a500" : "#5a7a94", fontWeight: 700 }}>{i + 1}.</span>
+                    <span style={{ color: i === 0 ? "#f0e0a0" : "#d0e4f0", fontWeight: i === 0 ? 600 : 400 }}>{w.zone} — {w.spot}</span>
+                    <span style={{ color: "#5a7a94", fontSize: "0.8rem" }}> · {w.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {/* BETTER ZONE ALERT */}
+          {block.betterZones?.length > 0 && (
+            <div style={{ marginBottom: 12, background: "rgba(74,176,255,0.05)", border: "1px solid rgba(74,176,255,0.2)", borderRadius: 7, padding: "10px 13px" }}>
+              <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.6rem", letterSpacing: 2, textTransform: "uppercase", color: "#4ab0ff", marginBottom: 6 }}>🎯 Better Zone This Block</div>
+              {block.betterZones.map((z, i) => (
+                <div key={i} style={{ fontSize: "0.84rem", color: "#a0c8f0", lineHeight: 1.5, marginBottom: i < block.betterZones.length - 1 ? 6 : 0 }}>
+                  <span style={{ color: "#4ab0ff", fontWeight: 600 }}>{z.zone}</span> — {z.spot} · <span style={{ color: "#5a7a94" }}>{z.reason}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {block.strategy.length > 0 && <Section title="Strategy" items={block.strategy} />}
           {block.primarySpecies.length > 0 && <Section title="Target Species" items={block.primarySpecies} color="#00c8a0" />}
           {block.zoneTips.length > 0 && (
