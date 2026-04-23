@@ -1140,7 +1140,7 @@ export default function FishingTool() {
   const [coords, setCoords] = useState([{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}]);
   const coordsRef = useRef([{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}]);
   const [zones, setZones] = useState(["lake-borgne"]);
-  const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapExpanded, setMapExpanded] = useState(true);
   const [tripStart, setTripStart] = useState("");
   const [tripEnd,   setTripEnd]   = useState("");
   const [blocks, setBlocks] = useState([]);
