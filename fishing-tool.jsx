@@ -1906,84 +1906,8 @@ export default function FishingTool() {
                   )}
                 </div>
 
-                {/* RIGHT: River + Water Quality + Tide Chart */}
+                {/* RIGHT: Conditions + (River Gauges | Water Quality) + Tide Chart */}
                 <div>
-                  {(riverFt !== null || pearlRiverFt !== null) && (
-                    <>
-                      <div className="sl">River Gauges</div>
-                      <div className="card" style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                        {riverFt !== null && (() => {
-                          const color = riverFt > 12 ? "#e05a2b" : "#00c8a0";
-                          return (
-                            <div>
-                              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Mississippi River — Carrollton</div>
-                              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                                <div style={{ fontFamily:"Bebas Neue,sans-serif", fontSize:"2rem", color }}>{riverFt.toFixed(1)}<span style={{ fontSize:"1rem", marginLeft:4 }}>ft</span></div>
-                                <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.7rem", color:"var(--mu)", lineHeight:1.55 }}>
-                                  {riverFt > 16 ? "⚠ Very High — major freshwater. Reds only." : riverFt > 12 ? "⚠ Elevated — trout displaced toward Borgne." : riverFt > 8 ? "✓ Moderate — normal salinity expected." : "✓ Low — excellent clarity & salinity."}
-                                </div>
-                              </div>
-                              <div style={{ height:6, background:"var(--bd)", borderRadius:4, overflow:"hidden", marginTop:7 }}>
-                                <div style={{ height:"100%", borderRadius:4, width:`${Math.min(100,(riverFt/20)*100)}%`, background:color, transition:"width .6s ease" }} />
-                              </div>
-                            </div>
-                          );
-                        })()}
-                        {pearlRiverFt !== null && (() => {
-                          const color = pearlRiverFt > 10 ? "#e05a2b" : pearlRiverFt > 6 ? "#c8a000" : "#00c8a0";
-                          return (
-                            <div style={{ borderTop: riverFt !== null ? "1px solid var(--bd)" : "none", paddingTop: riverFt !== null ? 10 : 0 }}>
-                              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Pearl River — W. Pearl at Pearl River, LA</div>
-                              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                                <div style={{ fontFamily:"Bebas Neue,sans-serif", fontSize:"2rem", color }}>{pearlRiverFt.toFixed(1)}<span style={{ fontSize:"1rem", marginLeft:4 }}>ft</span></div>
-                                <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.7rem", color:"var(--mu)", lineHeight:1.55 }}>
-                                  {pearlRiverFt > 10 ? "⚠ High — freshwater flooding Pearl River Marsh." : pearlRiverFt > 6 ? "⚠ Elevated — reduced salinity near river mouth." : "✓ Normal — good salinity at Pearl River mouth."}
-                                </div>
-                              </div>
-                              <div style={{ height:6, background:"var(--bd)", borderRadius:4, overflow:"hidden", marginTop:7 }}>
-                                <div style={{ height:"100%", borderRadius:4, width:`${Math.min(100,(pearlRiverFt/15)*100)}%`, background:color, transition:"width .6s ease" }} />
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </>
-                  )}
-
-                  {waterQuality.length > 0 && (
-                    <>
-                      <div className="sl">Water Quality</div>
-                      <div className="card">
-                        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                          {waterQuality.map(s => {
-                            const lbl = salinityLabel(s.salNow);
-                            const trendIcon = s.trend === "rising" ? "↑" : s.trend === "falling" ? "↓" : "→";
-                            const trendColor = s.trend === "rising" ? "#4ab0ff" : s.trend === "falling" ? "#e05a2b" : "#5a7a94";
-                            const updated = s.updatedAt ? new Date(s.updatedAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : "";
-                            return (
-                              <div key={s.id} style={{ background:"var(--bg)", border:"1px solid var(--bd)", borderLeft:`3px solid ${lbl.color}`, borderRadius:6, padding:"10px 13px" }}>
-                                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, marginBottom:5 }}>
-                                  <div>
-                                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1 }}>{s.label}</div>
-                                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#2a4060", marginTop:1 }}>{s.zone}</div>
-                                  </div>
-                                  {updated && <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#2a4060" }}>{updated}</div>}
-                                </div>
-                                <div style={{ display:"flex", alignItems:"baseline", gap:10 }}>
-                                  <span style={{ fontFamily:"Bebas Neue,sans-serif", fontSize:"1.7rem", color:lbl.color, lineHeight:1 }}>{s.salNow !== null ? s.salNow.toFixed(1) : "—"}</span>
-                                  <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.7rem", color:"var(--mu)" }}>ppt</span>
-                                  {s.trend && <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.75rem", color:trendColor }}>{trendIcon} {s.trend}</span>}
-                                  {s.tempF !== null && <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.7rem", color:"var(--mu)", marginLeft:"auto" }}>{s.tempF.toFixed(1)}°F</span>}
-                                </div>
-                                <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:lbl.color, marginTop:5 }}>{lbl.text}</div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </>
-                  )}
-
                   {tideDate && (() => {
                     const moon = getMoonPhase(tideDate);
                     const pressures = windForecast.map(w => w.pressure).filter(Boolean);
@@ -2027,6 +1951,89 @@ export default function FishingTool() {
                       </>
                     );
                   })()}
+
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, alignItems:"start" }}>
+                    {/* River Gauges — left */}
+                    <div>
+                      {(riverFt !== null || pearlRiverFt !== null) && (
+                        <>
+                          <div className="sl">River Gauges</div>
+                          <div className="card" style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                            {riverFt !== null && (() => {
+                              const color = riverFt > 12 ? "#e05a2b" : "#00c8a0";
+                              return (
+                                <div>
+                                  <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Mississippi River — Carrollton</div>
+                                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                                    <div style={{ fontFamily:"Bebas Neue,sans-serif", fontSize:"2rem", color }}>{riverFt.toFixed(1)}<span style={{ fontSize:"1rem", marginLeft:4 }}>ft</span></div>
+                                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.7rem", color:"var(--mu)", lineHeight:1.55 }}>
+                                      {riverFt > 16 ? "⚠ Very High — major freshwater. Reds only." : riverFt > 12 ? "⚠ Elevated — trout displaced toward Borgne." : riverFt > 8 ? "✓ Moderate — normal salinity expected." : "✓ Low — excellent clarity & salinity."}
+                                    </div>
+                                  </div>
+                                  <div style={{ height:6, background:"var(--bd)", borderRadius:4, overflow:"hidden", marginTop:7 }}>
+                                    <div style={{ height:"100%", borderRadius:4, width:`${Math.min(100,(riverFt/20)*100)}%`, background:color, transition:"width .6s ease" }} />
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {pearlRiverFt !== null && (() => {
+                              const color = pearlRiverFt > 10 ? "#e05a2b" : pearlRiverFt > 6 ? "#c8a000" : "#00c8a0";
+                              return (
+                                <div style={{ borderTop: riverFt !== null ? "1px solid var(--bd)" : "none", paddingTop: riverFt !== null ? 10 : 0 }}>
+                                  <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Pearl River — W. Pearl at Pearl River, LA</div>
+                                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                                    <div style={{ fontFamily:"Bebas Neue,sans-serif", fontSize:"2rem", color }}>{pearlRiverFt.toFixed(1)}<span style={{ fontSize:"1rem", marginLeft:4 }}>ft</span></div>
+                                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.7rem", color:"var(--mu)", lineHeight:1.55 }}>
+                                      {pearlRiverFt > 10 ? "⚠ High — freshwater flooding Pearl River Marsh." : pearlRiverFt > 6 ? "⚠ Elevated — reduced salinity near river mouth." : "✓ Normal — good salinity at Pearl River mouth."}
+                                    </div>
+                                  </div>
+                                  <div style={{ height:6, background:"var(--bd)", borderRadius:4, overflow:"hidden", marginTop:7 }}>
+                                    <div style={{ height:"100%", borderRadius:4, width:`${Math.min(100,(pearlRiverFt/15)*100)}%`, background:color, transition:"width .6s ease" }} />
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {/* Water Quality — right */}
+                    <div>
+                      {waterQuality.length > 0 && (
+                        <>
+                          <div className="sl">Water Quality</div>
+                          <div className="card">
+                            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                              {waterQuality.map(s => {
+                                const lbl = salinityLabel(s.salNow);
+                                const trendIcon = s.trend === "rising" ? "↑" : s.trend === "falling" ? "↓" : "→";
+                                const trendColor = s.trend === "rising" ? "#4ab0ff" : s.trend === "falling" ? "#e05a2b" : "#5a7a94";
+                                const updated = s.updatedAt ? new Date(s.updatedAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : "";
+                                return (
+                                  <div key={s.id} style={{ background:"var(--bg)", border:"1px solid var(--bd)", borderLeft:`3px solid ${lbl.color}`, borderRadius:6, padding:"10px 13px" }}>
+                                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, marginBottom:5 }}>
+                                      <div>
+                                        <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1 }}>{s.label}</div>
+                                        <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#2a4060", marginTop:1 }}>{s.zone}</div>
+                                      </div>
+                                      {updated && <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#2a4060" }}>{updated}</div>}
+                                    </div>
+                                    <div style={{ display:"flex", alignItems:"baseline", gap:10 }}>
+                                      <span style={{ fontFamily:"Bebas Neue,sans-serif", fontSize:"1.7rem", color:lbl.color, lineHeight:1 }}>{s.salNow !== null ? s.salNow.toFixed(1) : "—"}</span>
+                                      <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.7rem", color:"var(--mu)" }}>ppt</span>
+                                      {s.trend && <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.75rem", color:trendColor }}>{trendIcon} {s.trend}</span>}
+                                      {s.tempF !== null && <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.7rem", color:"var(--mu)", marginLeft:"auto" }}>{s.tempF.toFixed(1)}°F</span>}
+                                    </div>
+                                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:lbl.color, marginTop:5 }}>{lbl.text}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
 
                   {tidePreds.length > 0 && (
                     <>
