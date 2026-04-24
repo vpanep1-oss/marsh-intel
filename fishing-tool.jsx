@@ -854,14 +854,25 @@ function BlockCard({ block }) {
   const [open, setOpen] = useState(true);
   const hasAvoid = block.avoid.length > 0;
   const hasCaution = block.caution.length > 0;
-  const hasZoneWarning = block.zoneTips.some(z => z.tips.some(t => t.includes("⚠")));
-  const topSpot = block.whereToFish?.[0];
 
-  // Compose lead paragraph from top spot + first 2 non-warning strategy items
+  // Primary recommendation: top-scoring zone
+  const topSpot = block.whereToFish?.[0];
+  // Single fallback: next highest scoring zone
+  const altSpot = block.whereToFish?.[1] ?? null;
+
+  // Zone tips only for the top zone (and alt zone if it exists)
+  const topZoneLabel = topSpot?.zone ?? null;
+  const altZoneLabel = altSpot?.zone ?? null;
+  const primaryTips = block.zoneTips.find(z => z.label === topZoneLabel) ?? null;
+  const altTips     = block.zoneTips.find(z => z.label === altZoneLabel) ?? null;
+  const hasZoneWarning = primaryTips?.tips.some(t => t.includes("⚠")) ?? false;
+
+  // Strategy lines (non-warning) for context
   const strategyLines = block.strategy.filter(s => !s.includes("⚠") && !s.includes("△"));
+  // Lead: top spot sentence + first tactic line
   const leadParts = [];
   if (topSpot) leadParts.push(`${topSpot.spot} in ${topSpot.zone} — ${topSpot.reason}.`);
-  strategyLines.slice(0, 2).forEach(s => leadParts.push(s));
+  if (strategyLines[0]) leadParts.push(strategyLines[0]);
   const leadText = leadParts.join(" ");
 
   return (
@@ -885,44 +896,47 @@ function BlockCard({ block }) {
       </div>
       {open && (
         <div className="bb">
-          {/* LEAD PARAGRAPH */}
+          {/* LEAD PARAGRAPH — primary recommendation */}
           {leadText && <p style={{ fontSize:"0.88rem", color:"#d0e4f0", lineHeight:1.75, marginBottom:14 }}>{leadText}</p>}
 
-          {/* ADDITIONAL SPOTS */}
-          {block.whereToFish?.length > 1 && (
-            <div style={{ marginBottom:14 }}>
-              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", letterSpacing:2, textTransform:"uppercase", color:"#5a7a94", marginBottom:7 }}>Also Worth Fishing</div>
-              {block.whereToFish.slice(1).map((w, i) => (
-                <p key={i} style={{ fontSize:"0.84rem", color:"#a0b8cc", lineHeight:1.65, marginBottom:5 }}>
-                  <span style={{ color:"#d0e4f0" }}>{w.zone} — {w.spot}.</span> {w.reason}.
-                </p>
-              ))}
-            </div>
-          )}
+          {/* PRIMARY ZONE TIPS */}
+          {primaryTips && (() => {
+            const normal = primaryTips.tips.filter(t => !t.includes("⚠"));
+            const warns  = primaryTips.tips.filter(t => t.includes("⚠"));
+            return (
+              <div style={{ marginBottom:14 }}>
+                {normal.length > 0 && <p style={{ fontSize:"0.84rem", color:"#d0e4f0", lineHeight:1.65, marginBottom: warns.length ? 6 : 0 }}>{normal.join(" ")}</p>}
+                {warns.map((t, j) => <p key={j} style={{ fontSize:"0.84rem", color:"#f08070", lineHeight:1.65, marginBottom:0 }}>{t}</p>)}
+              </div>
+            );
+          })()}
 
-          {/* ZONE TIPS AS PROSE */}
-          {block.zoneTips.length > 0 && (
+          {/* REMAINING KEY STRATEGY LINES */}
+          {strategyLines.length > 1 && (
             <div style={{ marginBottom:14 }}>
-              {block.zoneTips.map(({ label, tips }, i) => {
-                const normal = tips.filter(t => !t.includes("⚠"));
-                const warns  = tips.filter(t => t.includes("⚠"));
-                return (
-                  <div key={i} style={{ marginBottom:10 }}>
-                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", letterSpacing:1, textTransform:"uppercase", color:"#5a7a94", marginBottom:4 }}>{label}</div>
-                    {normal.length > 0 && <p style={{ fontSize:"0.84rem", color:"#d0e4f0", lineHeight:1.65, marginBottom: warns.length ? 5 : 0 }}>{normal.join(" ")}</p>}
-                    {warns.map((t, j) => <p key={j} style={{ fontSize:"0.84rem", color:"#f08070", lineHeight:1.65, marginBottom:0 }}>{t}</p>)}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* REMAINING STRATEGY LINES */}
-          {strategyLines.length > 2 && (
-            <div style={{ marginBottom:14 }}>
-              {strategyLines.slice(2).map((s, i) => (
+              {strategyLines.slice(1).map((s, i) => (
                 <p key={i} style={{ fontSize:"0.84rem", color:"#a0b8cc", lineHeight:1.65, marginBottom:4 }}>{s}</p>
               ))}
+            </div>
+          )}
+
+          {/* SINGLE FALLBACK ZONE */}
+          {altSpot && (
+            <div style={{ marginBottom:14, background:"rgba(255,255,255,0.02)", borderLeft:"2px solid #2a4a6a", paddingLeft:12 }}>
+              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.58rem", letterSpacing:2, textTransform:"uppercase", color:"#5a7a94", marginBottom:5 }}>If conditions push you off {topZoneLabel}</div>
+              <p style={{ fontSize:"0.84rem", color:"#a0b8cc", lineHeight:1.65, marginBottom: altTips ? 6 : 0 }}>
+                <span style={{ color:"#d0e4f0" }}>{altSpot.zone} — {altSpot.spot}.</span> {altSpot.reason}.
+              </p>
+              {altTips && (() => {
+                const normal = altTips.tips.filter(t => !t.includes("⚠"));
+                const warns  = altTips.tips.filter(t => t.includes("⚠"));
+                return (
+                  <>
+                    {normal.length > 0 && <p style={{ fontSize:"0.82rem", color:"#8090a0", lineHeight:1.6, marginBottom: warns.length ? 4 : 0 }}>{normal.join(" ")}</p>}
+                    {warns.map((t, j) => <p key={j} style={{ fontSize:"0.82rem", color:"#f08070", lineHeight:1.6, marginBottom:0 }}>{t}</p>)}
+                  </>
+                );
+              })()}
             </div>
           )}
 
