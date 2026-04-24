@@ -898,7 +898,7 @@ function TideChart({ predictions, predictions2 = [], blendWeight = 0.5, label1 =
         )}
         {windForecast.length > 0 && primaryZoneId && (
           <>
-            {[["rgba(0,200,160,0.65)","Reinforcing"],["rgba(224,90,43,0.65)","Opposing"],["rgba(74,176,255,0.5)","Crossing"]].map(([bg, lbl]) => (
+            {[["rgba(0,200,160,0.65)","Reinforcing"],["rgba(224,90,43,0.65)","Opposing"],["rgba(74,176,255,0.5)","Crossing"],["rgba(30,48,72,0.5)","Minimal wind"]].map(([bg, lbl]) => (
               <span key={lbl} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", display:"flex", alignItems:"center", gap:5 }}>
                 <span style={{ width:14, height:7, borderRadius:2, background:bg, display:"inline-block" }} />{lbl}
               </span>
