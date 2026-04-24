@@ -9,6 +9,8 @@ const WIND_DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW
 
 const WIND_DIR_DEG = { N:0, NNE:22.5, NE:45, ENE:67.5, E:90, ESE:112.5, SE:135, SSE:157.5, S:180, SSW:202.5, SW:225, WSW:247.5, W:270, WNW:292.5, NW:315, NNW:337.5 };
 
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+
 // Bearing (degrees) that water flows TOWARD during each tide phase per zone
 const ZONE_TIDE_BEARINGS = {
   "lake-st-catherine":    { flood: 270, ebb: 90  }, // floods in from Borgne (W into lake), ebbs E back to Borgne
@@ -106,7 +108,6 @@ function getMoonPhase(dateStr) {
 // Returns how much wind reinforces or opposes tidal current in a zone.
 // factor: -1 (fully opposing) to +1 (fully reinforcing), 0 = crossing/slack
 function windTideEffect(windDir, windSpeed, tideDir, zoneId, { windwardBank = "", leewardBank = "" } = {}) {
-  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   const zb = ZONE_TIDE_BEARINGS[zoneId];
   if (!zb || !windDir || !windSpeed) return { label: "minimal", factor: 0, color: "#2a4060", note: "" };
   if (tideDir === "slack") {
@@ -181,8 +182,8 @@ function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, hig
 function getBestSpot(zoneId, { tideDir, windwardBank, highPearlRiver }) {
   if (zoneId === "lake-st-catherine") {
     if (tideDir === "falling") return { spot: "South-end shell reef edges and cut mouths", reason: "Falling tide pulls bait toward Borgne — predators stack at the exits" };
-    if (tideDir === "rising")  return { spot: `${windwardBank} shoreline grass edge and potholes`, reason: "Water refilling from the east, wind concentrating bait on the windward bank" };
-    return { spot: `${windwardBank} grass edge`, reason: "Slack water — wind is the only current, fish the windward side" };
+    if (tideDir === "rising")  return { spot: `${cap(windwardBank)} shoreline grass edge and potholes`, reason: "Water refilling from the east, wind concentrating bait on the windward bank" };
+    return { spot: `${cap(windwardBank)} grass edge`, reason: "Slack water — wind is the only current, fish the windward side" };
   }
   if (zoneId === "lake-catherine-cuts") {
     if (tideDir === "falling") return { spot: "Downcurrent face of cut exits", reason: "Bait funnels out — flounder, trout, and reds stack just outside the mouth" };
@@ -192,12 +193,12 @@ function getBestSpot(zoneId, { tideDir, windwardBank, highPearlRiver }) {
   if (zoneId === "chef-pass") {
     if (tideDir === "falling") return { spot: "Cut mouth intersections with the IWW channel", reason: "Current rips form at junctions — predators ambush bait pushed out by the tide" };
     if (tideDir === "rising")  return { spot: "North bank grass and shell edges inside the pass", reason: "Rising tide activates grass edges along the north bank" };
-    return { spot: `${windwardBank} of the IWW corridor`, reason: "Wind funnels through the IWW — fish the bank the wind hits directly" };
+    return { spot: `${cap(windwardBank)} of the IWW corridor`, reason: "Wind funnels through the IWW — fish the bank the wind hits directly" };
   }
   if (zoneId === "lake-borgne") {
     if (tideDir === "falling") return { spot: "West-end shell reef edges and current points", reason: "Falling tide pushes bait off the reefs — trout and reds on the downcurrent side" };
     if (tideDir === "rising")  return { spot: "North and west shoreline shell reefs", reason: "Upcurrent face as water rises — trout and reds stacking on the lip" };
-    return { spot: `${windwardBank} shell reefs`, reason: "Slack tide — wind driving bait onto these reefs right now" };
+    return { spot: `${cap(windwardBank)} shell reefs`, reason: "Slack tide — wind driving bait onto these reefs right now" };
   }
   if (zoneId === "mrgo-interior") {
     if (tideDir === "rising") return { spot: "Shallow pond edges and grass lines", reason: "Water fills the interior — tailing reds and drum rooting on the grass edge" };
@@ -359,7 +360,6 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     }
 
     // ─── ZONE TIPS ───────────────────────────────────────────────────────────
-    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
     if (zones.includes("lake-st-catherine")) {
       if (isStrongWind) zt("Lake St. Catherine", `⚠ ${windSpeed}mph ${windDir} — chop builds fast on this shallow system. Stay tight to the ${windwardBank} and avoid open mid-lake drifts.`);
       if (tideDir === "falling") {
@@ -994,7 +994,7 @@ function BlockCard({ block }) {
   const strategyLines = block.strategy.filter(s => !s.includes("⚠") && !s.includes("△"));
   // Lead: top spot sentence + first tactic line
   const leadParts = [];
-  if (topSpot) leadParts.push(`${topSpot.spot} in ${topSpot.zone} — ${topSpot.reason}.`);
+  if (topSpot) leadParts.push(`${cap(topSpot.spot)} in ${topSpot.zone} — ${topSpot.reason}.`);
   if (strategyLines[0]) leadParts.push(strategyLines[0]);
   const leadText = leadParts.join(" ");
 
