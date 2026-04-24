@@ -1058,7 +1058,7 @@ function TimeBlockForm({ block, index, onChange, onRemove }) {
 }
 
 // ─── BLOCK CARD ───────────────────────────────────────────────────────────────
-function BlockCard({ block }) {
+function BlockCard({ block, onSwitchZone }) {
   const [open, setOpen] = useState(true);
   const hasAvoid = block.avoid.length > 0;
   const hasCaution = block.caution.length > 0;
@@ -1168,9 +1168,19 @@ function BlockCard({ block }) {
             <div style={{ marginBottom:12, background:"rgba(74,176,255,0.05)", border:"1px solid rgba(74,176,255,0.2)", borderRadius:7, padding:"10px 13px" }}>
               <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", letterSpacing:2, textTransform:"uppercase", color:"#4ab0ff", marginBottom:6 }}>🎯 Better Zone This Block</div>
               {block.betterZones.map((z, i) => (
-                <p key={i} style={{ fontSize:"0.84rem", color:"#a0c8f0", lineHeight:1.5, marginBottom: i < block.betterZones.length - 1 ? 6 : 0 }}>
-                  <span style={{ color:"#4ab0ff", fontWeight:600 }}>{z.zone}</span> — {z.spot}. {z.reason}.
-                </p>
+                <div key={i} style={{ marginBottom: i < block.betterZones.length - 1 ? 10 : 0 }}>
+                  <p style={{ fontSize:"0.84rem", color:"#a0c8f0", lineHeight:1.5, marginBottom:6 }}>
+                    <span style={{ color:"#4ab0ff", fontWeight:600 }}>{z.zone}</span> — {z.spot}. {z.reason}.
+                  </p>
+                  {onSwitchZone && (
+                    <button
+                      onClick={() => onSwitchZone(z.zoneId)}
+                      style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", padding:"4px 12px", borderRadius:6, border:"1px solid rgba(74,176,255,0.4)", color:"#4ab0ff", background:"rgba(74,176,255,0.08)", cursor:"pointer", letterSpacing:0.5 }}
+                    >
+                      Switch Strategy →
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -1709,7 +1719,7 @@ export default function FishingTool() {
     if (newBlocks.length) setBlocks(newBlocks);
   };
 
-  const generate = () => {
+  const buildPlanArgs = () => {
     const salReadings = waterQuality.filter(s => s.salNow !== null).map(s => s.salNow);
     const minSalinity = salReadings.length ? Math.min(...salReadings) : null;
     const moon = tideDate ? getMoonPhase(tideDate) : null;
@@ -1717,8 +1727,20 @@ export default function FishingTool() {
     const pressureTrend = pressures.length >= 6
       ? (() => { const e = pressures.slice(0,3).reduce((a,b)=>a+b,0)/3; const l = pressures.slice(-3).reduce((a,b)=>a+b,0)/3; return l - e > 1 ? "rising" : l - e < -1 ? "falling" : "steady"; })()
       : "steady";
+    return { minSalinity, moon, pressureTrend };
+  };
+
+  const generate = () => {
+    const { minSalinity, moon, pressureTrend } = buildPlanArgs();
     setPlan(generatePlan(blocks, zones, allRules, riverFt, minSalinity, pearlRiverFt, moon, pressureTrend, waterTempF, tideDate));
     setTab("plan");
+  };
+
+  const switchToZone = (zoneId) => {
+    const newZones = zones.includes(zoneId) ? zones : [...zones, zoneId];
+    setZones(newZones);
+    const { minSalinity, moon, pressureTrend } = buildPlanArgs();
+    setPlan(generatePlan(blocks, newZones, allRules, riverFt, minSalinity, pearlRiverFt, moon, pressureTrend, waterTempF, tideDate));
   };
 
   const postToNetlify = (fields) =>
@@ -2354,7 +2376,7 @@ export default function FishingTool() {
                   </div>
                 );
               })()}
-              {plan.map((b,i) => <BlockCard key={i} block={b} />)}
+              {plan.map((b,i) => <BlockCard key={i} block={b} onSwitchZone={switchToZone} />)}
 
               {/* KEY WATCHOUTS */}
               {(() => {
