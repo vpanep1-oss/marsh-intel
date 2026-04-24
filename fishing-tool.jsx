@@ -105,36 +105,39 @@ function getMoonPhase(dateStr) {
 // ─── WIND-TIDE INTERACTION ────────────────────────────────────────────────────
 // Returns how much wind reinforces or opposes tidal current in a zone.
 // factor: -1 (fully opposing) to +1 (fully reinforcing), 0 = crossing/slack
-function windTideEffect(windDir, windSpeed, tideDir, zoneId) {
+function windTideEffect(windDir, windSpeed, tideDir, zoneId, { windwardBank = "", leewardBank = "" } = {}) {
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   const zb = ZONE_TIDE_BEARINGS[zoneId];
   if (!zb || !windDir || !windSpeed) return { label: "minimal", factor: 0, color: "#2a4060", note: "" };
   if (tideDir === "slack") {
+    const bankNote = windwardBank
+      ? ` Fish the ${windwardBank}${leewardBank ? `; ${leewardBank} is calm but dead` : ""}.`
+      : " Fish the bank the wind hits directly.";
     return { label: "wind-driven", factor: 0, color: "#4ab0ff",
-      note: `Slack tide — ${windDir} wind at ${windSpeed}mph is the primary current. Fish the bank the wind hits directly.` };
+      note: `Slack tide — ${windDir} ${windSpeed}mph is the primary current.${bankNote}` };
   }
   const currentBearing = tideDir === "falling" ? zb.ebb : zb.flood;
   const windToDeg = (WIND_DIR_DEG[windDir] + 180) % 360;
   const angleDiff = ((windToDeg - currentBearing + 360) % 360);
   const cosAngle = Math.cos(angleDiff * Math.PI / 180);
-  // Scale effect by wind speed bracket
   const speedFactor = windSpeed <= 5 ? 0.12 : windSpeed <= 10 ? 0.35 : windSpeed <= 15 ? 0.62 : 0.90;
   const factor = cosAngle * speedFactor;
 
   if (windSpeed <= 5) return { label: "minimal", factor, color: "#2a4060",
-    note: `Light wind (${windSpeed}mph) — minimal tide interaction. Tidal current drives the bite.` };
+    note: `Light wind (${windSpeed}mph) — tidal current drives the bite.` };
 
   if (factor > 0.25) return { label: "reinforcing", factor, color: "#00c8a0",
     note: windSpeed > 15
-      ? `${windDir} wind (${windSpeed}mph) reinforcing the ${tideDir} current — strong combined push. Bait is concentrated hard at pinch points and cut exits.`
-      : `${windDir} wind (${windSpeed}mph) aligned with the ${tideDir} current — boosted current and bait push. Better concentration at drain mouths and cut exits.` };
+      ? `${windDir} wind (${windSpeed}mph) reinforcing the ${tideDir} current — strong combined push. Bait concentrated hard at pinch points and cut exits.`
+      : `${windDir} wind (${windSpeed}mph) aligned with the ${tideDir} current — boosted push.${windwardBank ? ` ${cap(windwardBank)} gets both wind and tide — fish that bank first.` : " Better concentration at drain mouths and cut exits."}` };
 
   if (factor < -0.25) return { label: "opposing", factor, color: "#e05a2b",
     note: windSpeed > 15
-      ? `${windDir} wind (${windSpeed}mph) opposing the ${tideDir} tide — current partially suppressed. Rough chop without productive current.`
-      : `${windDir} wind (${windSpeed}mph) opposing the ${tideDir} current — tide weakened. Less current through cuts; fish more spread out on structure rather than stacked at exits.` };
+      ? `${windDir} wind (${windSpeed}mph) opposing the ${tideDir} tide — current suppressed. Chop without productive current.`
+      : `${windDir} wind (${windSpeed}mph) opposing the ${tideDir} current — tide weakened. Fish spread out on structure; don't expect them stacked at drain exits.` };
 
   return { label: "crossing", factor, color: "#4ab0ff",
-    note: `${windDir} wind (${windSpeed}mph) crossing the tidal flow — current intact, wind stacking bait laterally on the windward bank alongside the tide.` };
+    note: `${windDir} wind (${windSpeed}mph) crossing the tidal flow — current intact, wind stacking bait onto the ${windwardBank || "windward bank"} alongside the tide.` };
 }
 
 // ─── ZONE SCORING ─────────────────────────────────────────────────────────────
@@ -304,12 +307,9 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
 
     if (tideDir === "slack") {
       if (isModerateWind) {
-        // Wind present during slack — wind IS the current, skip the "tidal current near zero" generic lines
-        strategy.push(`Fish the ${windwardBank} where bait is being pushed and stacked. Work the grass edge and any points that break the wind line.`);
+        // Zone tips carry the bank-specific advice; only keep safety warning here
         if (isStrongWind) strategy.push(`Avoid exposed open water — stay in protected cuts and behind-island shorelines to manage the chop.`);
-        strategy.push(`${leewardBank.charAt(0).toUpperCase() + leewardBank.slice(1)} is calm but dead — bait is on the opposite side.`);
       } else {
-        // Truly light/no wind slack — these lines are useful
         strategy.push("Slack water — tidal current near zero. Fish are transitioning, not ambushing.");
         strategy.push("Light wind and no tidal push — use this window to run to your next location and scout structure on the depth finder.");
         strategy.push("Expect 30–60 min of slow action depending on tidal amplitude.");
@@ -359,71 +359,96 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     }
 
     // ─── ZONE TIPS ───────────────────────────────────────────────────────────
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
     if (zones.includes("lake-st-catherine")) {
-      if (isStrongWind) zt("Lake St. Catherine", `⚠ ${windSpeed}mph ${windDir} — stay tight to the ${windwardBank} and avoid open mid-lake drifts. Chop builds fast on this shallow system.`);
+      if (isStrongWind) zt("Lake St. Catherine", `⚠ ${windSpeed}mph ${windDir} — chop builds fast on this shallow system. Stay tight to the ${windwardBank} and avoid open mid-lake drifts.`);
       if (tideDir === "falling") {
-        zt("Lake St. Catherine", "Shell reef edges and cut mouths on south end where current exits toward Borgne. Watch for birds.");
-        zt("Lake St. Catherine", "Black drum stacked on shell pads as current moves bait across them — slow-roll or dead-stick a crab.");
+        zt("Lake St. Catherine", `Shell reef edges and cut mouths on the south end — falling tide pulling bait toward Borgne. Black drum stacked on shell pads; slow-roll a crab. Watch for birds over the exits.`);
+      } else if (tideDir === "rising" && windFromSouth) {
+        zt("Lake St. Catherine", `South wind piling bait on the north shoreline — work the grass edges and potholes for reds${troutAvailable ? " and trout" : ""}. South bank has no action right now.`);
+      } else if (tideDir === "rising") {
+        zt("Lake St. Catherine", `Drift shell reefs and grass points as water refills from Borgne.${isModerateWind ? ` ${cap(windwardBank)} edges hold the most bait — ${windDir} wind stacking here alongside the rising tide.` : " Black drum active on the reefs; trout on shell edges at first light."}`);
+      } else if (tideDir === "slack" && isModerateWind) {
+        zt("Lake St. Catherine", `${cap(windwardBank)} grass edge and potholes — ${windDir} wind at ${windSpeed}mph is the only current. Work grass points and structure that breaks the wind line. ${cap(leewardBank)} is calm but dead.`);
+      } else {
+        zt("Lake St. Catherine", "Slack with no wind — fish are transitioning. Scout structure on the depth finder; expect slow action for 30–60 min.");
       }
-      if (tideDir === "rising" && windFromSouth) zt("Lake St. Catherine", `South wind piles bait on north shoreline — work those grass edges for reds${troutAvailable ? " and trout" : ""}.`);
-      if (tideDir === "rising" && !windFromSouth) zt("Lake St. Catherine", "Drift shell reefs and grass points as water refills from Borgne side. Black drum active on the reefs.");
-      if (tideDir === "slack" && isModerateWind) zt("Lake St. Catherine", `Slack tide but ${windSpeed}mph ${windDir} — fish the ${windwardBank}. Wind is the only current right now.`);
-      if (season === "winter") zt("Lake St. Catherine", "Winter: reds schooled on dark mud bottom on the east and south banks absorbing solar heat. Trout off this lake — too shallow and cold. Bass on deeper grass edge transitions.");
-      if (season === "spring") zt("Lake St. Catherine", "Spring: reds starting to show in potholes along the north grass edge. Bass spawning on hard bottom near grass transitions. Trout active in early morning on shell.");
-      if (season === "summer") zt("Lake St. Catherine", "Summer: this shallow lake heats up fast — arrive at first light. Reds tolerate the heat better than trout. Work the deeper south-end channel edges midday.");
-      if (season === "fall") zt("Lake St. Catherine", "Fall prime: trout on shell reef edges and grass points responding to topwater. Reds schooling near the south end cuts. Bass very active along grass transitions.");
+      if (season === "winter") zt("Lake St. Catherine", "Winter: reds schooled on dark mud on east and south banks absorbing solar heat. Trout off this lake — too shallow and cold. Bass on deeper grass edge transitions.");
+      if (season === "spring") zt("Lake St. Catherine", "Spring: reds showing in potholes along the north grass edge. Bass spawning on hard bottom near grass transitions. Trout active on shell at first light.");
+      if (season === "summer") zt("Lake St. Catherine", "Summer: shallow lake heats up fast — arrive at first light. Work the deeper south-end channel edges midday.");
+      if (season === "fall") zt("Lake St. Catherine", "Fall prime: trout on shell reef edges and grass points responding to topwater. Reds schooling near south-end cuts. Bass very active along grass transitions.");
     }
     if (zones.includes("lake-catherine-cuts")) {
-      if (tideDir === "falling") zt("Lake Catherine Cuts / Trenasses", `Position just outside the exit on the downcurrent side — ${troutAvailable ? "flounder and trout" : "flounder and reds"} both stack here. Even 0.25ft of drop creates a strong current through a tight throat.`);
-      if (tideDir === "rising") zt("Lake Catherine Cuts / Trenasses", "Fish the inside face of the cut as water pushes in — reds and flounder hold on the upcurrent edge.");
-      if (tideDir === "slack" && isModerateWind) zt("Lake Catherine Cuts / Trenasses", `No tidal current but ${windDir} wind at ${windSpeed}mph — cuts aligned with the wind will still have some push. Check which cuts face ${windDir} and work those.`);
-      if (isStrongWind) zt("Lake Catherine Cuts / Trenasses", "⚠ Strong wind creates standing waves at cut exits in open exposure — approach from the leeward side and anchor before the mouth.");
-      if (season === "winter") zt("Lake Catherine Cuts / Trenasses", "Winter: cuts are the warmest water in the system — current keeps temps slightly higher than the open lake. Reds stacked in the deeper cut throats. Bass on the inside grass edges.");
-      if (season === "fall") zt("Lake Catherine Cuts / Trenasses", "Fall: flounder stacking at cut exits ahead of their Gulf migration — one of the best flounder windows of the year. Also prime for reds ambushing from the cut edges.");
+      if (isStrongWind) zt("Lake Catherine Cuts / Trenasses", "⚠ Strong wind creates standing waves at cut exits on exposed faces — approach from the leeward side and anchor before the mouth.");
+      if (tideDir === "falling") {
+        zt("Lake Catherine Cuts / Trenasses", `Downcurrent face of the cut exits — ${troutAvailable ? "flounder, trout, and reds" : "flounder and reds"} stacking just outside the mouth. Even 0.25ft of drop creates a strong rip through a tight throat. Position on the downtide side and let the current do the work.`);
+      } else if (tideDir === "rising") {
+        zt("Lake Catherine Cuts / Trenasses", `Inside (upcurrent) face of cut throats — reds and flounder hold on the upcurrent lip as water pushes in. Don't sit outside the mouth; fish have moved to the upcurrent edge.`);
+      } else if (tideDir === "slack" && isModerateWind) {
+        zt("Lake Catherine Cuts / Trenasses", `No tidal current — find cuts aligned with ${windDir} wind and work those first. ${windSpeed}mph through a tight throat still pushes bait. ${cap(windwardBank)} face of each cut gets the most push.`);
+      } else {
+        zt("Lake Catherine Cuts / Trenasses", "Slack with no wind — cuts are dead right now. Reposition for the next tide phase.");
+      }
+      if (season === "winter") zt("Lake Catherine Cuts / Trenasses", "Winter: cuts hold the warmest water in the system — current keeps temps above the open lake. Reds stacked in deeper cut throats. Bass on inside grass edges.");
+      if (season === "fall") zt("Lake Catherine Cuts / Trenasses", "Fall: flounder staging at cut exits ahead of Gulf migration — one of the best flounder windows of the year. Also prime for reds ambushing from cut edges.");
     }
     if (zones.includes("lake-borgne")) {
       if (isStrongWind) zt("Lake Borgne", `⚠ ${windSpeed}mph ${windDir} — open water gets dangerous fast. Stay inside 1 mile of the shoreline and keep a bailout route to the cut system.`);
-      if (tideDir === "falling") zt("Lake Borgne", "Work shell reef edges and points on the west end where current pushes bait out. Trout active in cleaner water — look for birds.");
-      if (tideDir === "rising") zt("Lake Borgne", "Shell reefs on the north and west shoreline as water rises. Trout and reds stacking on the upcurrent face.");
-      if (tideDir === "slack" && isModerateWind) zt("Lake Borgne", `Slack tide — wind at ${windSpeed}mph is driving bait onto the ${windwardBank} shell reefs. Work those edges.`);
-      if (highRiver) zt("Lake Borgne", "Best salinity refuge in the system right now — cleaner water than the interior marsh. Trout pushed here from the west.");
-      if (season === "winter") zt("Lake Borgne", "Winter: trout concentrated on deep shell reef edges (8–12ft) on the west end. Reds on mud flats along the north shore warming in sun. Not a bass lake — focus on trout and reds.");
+      if (tideDir === "falling") {
+        zt("Lake Borgne", `Shell reef edges and current points on the downcurrent side — trout and reds staging as tide pulls bait off the reefs.${isModerateWind ? ` ${cap(windwardBank)} reefs get both current and wind push — priority spots.` : " Look for birds over bait schools on the west end."}`);
+      } else if (tideDir === "rising") {
+        zt("Lake Borgne", `${cap(windwardBank)} shell reefs — trout and reds stacking on the upcurrent face as water rises.${isModerateWind ? ` ${windDir} wind reinforcing the push onto this bank — best bait concentration here.` : " Drift the upcurrent lip of each reef."}`);
+      } else if (tideDir === "slack" && isModerateWind) {
+        zt("Lake Borgne", `${cap(windwardBank)} shell reefs — ${windDir} wind at ${windSpeed}mph is stacking bait here. Work the reef edges and points. ${cap(leewardBank)} is calm but dead.`);
+      } else {
+        zt("Lake Borgne", "Slack with no wind — trout and reds holding tight to shell reef edges. Slow presentations on the bottom; scout with the depth finder.");
+      }
+      if (highRiver) zt("Lake Borgne", "Best salinity refuge in the system — cleaner water than interior marsh. Trout pushed here from the west; target shell reef edges on the east end.");
+      if (season === "winter") zt("Lake Borgne", "Winter: trout concentrated on deep shell reef edges (8–12ft) on the west end. Reds on mud flats along the north shore warming in sun.");
       if (season === "fall") zt("Lake Borgne", "Fall: best trout bite of the year on shell reefs. Look for birds and slicks over bait schools. Reds schooling in large pods — nervous water on open flats signals fish underneath. Topwater productive early.");
-      if (season === "summer") zt("Lake Borgne", "Summer: open water heats fast. Fish the deeper shell reef edges at first light — trout go deep by 9 AM. East wind days give you cleaner, slightly cooler water.");
+      if (season === "summer") zt("Lake Borgne", "Summer: open water heats fast — fish the deeper shell reef edges at first light. Trout go deep by 9 AM. East wind days give you cleaner, slightly cooler water.");
     }
     if (zones.includes("chef-pass")) {
-      if (tideDir === "falling" && isLightWind) {
-        zt("Chef Pass", "Good window — work cut edges and grass points along IWW. Flounder prime here on falling tide — target the sandy transition bottom just outside the grass.");
+      if (tideDir === "rising" && windFromSouth && isStrongWind) {
+        zt("Chef Pass", "⚠ Skip this window — rising tide with strong south wind makes this zone unfishable. Come back on the next falling tide or when wind lightens.");
+      } else if (tideDir === "slack" && isModerateWind) {
+        zt("Chef Pass", `⚠ IWW acts as a wind funnel — ${windDir} wind at ${windSpeed}mph is channeled and amplified through the corridor. Fish the ${windwardBank}; ${leewardBank} has no current and no fish.`);
+      } else if (tideDir === "falling") {
+        zt("Chef Pass", isModerateWind
+          ? `Downtide/downwind corner of cut mouths — ${windDir} wind and falling tide funneling bait to the same point. ${cap(windwardBank)} edges first. Flounder, reds, and trout all stack here.`
+          : "Cut edges and grass points along IWW — flounder prime here on falling tide. Target the sandy transition bottom just outside the grass, where flounder ambush bait pushed out by the current.");
+      } else if (tideDir === "rising") {
+        zt("Chef Pass", `North bank grass and shell edges inside the pass — reds and black drum on the rise.${isModerateWind ? ` ${windDir} wind at ${windSpeed}mph adding bait push to the ${windwardBank}.` : ""}`);
       }
-      if (tideDir === "falling" && isModerateWind) zt("Chef Pass", `Falling tide with ${windSpeed}mph ${windDir} — position on the downtide/downwind corner of cut mouths where both current and wind funnel bait to the same point.`);
-      if (tideDir === "rising" && !(windFromSouth && isStrongWind)) zt("Chef Pass", "Rising tide, manageable wind — north bank of the pass for reds and black drum on grass and shell edges.");
-      if (tideDir === "rising" && windFromSouth && isStrongWind) zt("Chef Pass", "⚠ Skip this window — come back on next falling tide or when wind lightens.");
-      if (tideDir === "slack" && isModerateWind) zt("Chef Pass", `⚠ Slack tide but ${windDir} wind at ${windSpeed}mph — IWW corridor acts as a wind funnel. Fish the bank the wind hits directly.`);
-      if (season === "winter") zt("Chef Pass", "Winter: IWW holds some of the warmest moving water in the area — current prevents hard temperature swings. Bass on wood structure inside the IWW. Reds schooled at the pass mouth.");
-      if (season === "spring") zt("Chef Pass", "Spring: bass spawning on hard bottom just inside the cuts off IWW — look for beds in 1–3ft of clear water. Reds and trout moving back in as water warms.");
-      if (season === "fall") zt("Chef Pass", "Fall: flounder stacking at the Chef Pass mouth and IWW intersections. Work the sandy transition bottom — this is one of the top fall flounder spots in the system.");
+      if (season === "winter") zt("Chef Pass", "Winter: IWW holds the warmest moving water in the area. Bass on wood structure inside the IWW. Reds schooled at the pass mouth.");
+      if (season === "spring") zt("Chef Pass", "Spring: bass spawning on hard bottom just inside the cuts off IWW — beds in 1–3ft of clear water. Reds and trout moving back in as water warms.");
+      if (season === "fall") zt("Chef Pass", "Fall: flounder stacking at Chef Pass mouth and IWW intersections. Work the sandy transition bottom — top fall flounder spot in the system.");
     }
     if (zones.includes("mrgo-interior")) {
-      if (tideDir === "falling") zt("MRGO Marsh", "Interior pond edges and drain mouths. Gardner Island tide runs ~4hrs ahead of Shell Beach — verify which tide phase you're actually on.");
-      if (tideDir === "rising") zt("MRGO Marsh", "Shallow pond edges and grass lines as water rises. Look for tailing reds and black drum rooting on shell.");
-      if (isModerateWind) zt("MRGO Marsh", `Interior ponds are protected — use the marsh as a wind break. Fish the ${windwardBank} of each pond for stacked bait.`);
-      if (season === "winter") zt("MRGO Marsh", "Winter: interior ponds can be very cold and slow. Look for dark mud bottom on south-facing pond edges that absorb sun — reds stack there on calm sunny days. Bass very slow.");
-      if (season === "spring") zt("MRGO Marsh", "Spring: interior marsh comes alive — reds showing in every pothole and pond edge as water warms. Bass on structure edges. Best time to explore new ponds.");
-      if (season === "summer") zt("MRGO Marsh", "Summer: interior ponds superheat — water temps can exceed the lake by 5°F. Get in and out before 9 AM. The MRGO channel itself stays cooler and holds fish through mid-morning.");
-      if (season === "fall") zt("MRGO Marsh", "Fall: reds schooling in large pods in the interior ponds — sight fishing with topwater or gold spoons. Some of the best action of the year if you find the schools.");
+      if (tideDir === "falling") {
+        zt("MRGO Marsh", `Interior pond edges and drain mouths as water drops.${isModerateWind ? ` Fish the ${windwardBank} of each pond where wind and tide push bait to the same corner.` : ""} Gardner Island tide runs ~4hrs ahead of Shell Beach — verify your actual tide phase.`);
+      } else if (tideDir === "rising") {
+        zt("MRGO Marsh", `Shallow pond edges and grass lines — tailing reds and black drum rooting on shell as water fills in.${isModerateWind ? ` ${cap(windwardBank)} of each pond gets the most bait push.` : ""}`);
+      } else if (tideDir === "slack" && isModerateWind) {
+        zt("MRGO Marsh", `Interior ponds are protected from wind. Fish the ${windwardBank} of each pond — ${windDir} wind is the only current and bait is stacking on that bank. ${cap(leewardBank)} is dead.`);
+      } else {
+        zt("MRGO Marsh", "Slack with no wind — use this window to run to new ponds and scout with the depth finder.");
+      }
+      if (season === "winter") zt("MRGO Marsh", "Winter: interior ponds cold and slow. Look for dark mud on south-facing pond edges absorbing sun — reds stack there on calm sunny days.");
+      if (season === "spring") zt("MRGO Marsh", "Spring: reds in every pothole and pond edge as water warms. Bass on structure edges. Best time to explore new ponds.");
+      if (season === "summer") zt("MRGO Marsh", "Summer: interior ponds superheat — get in and out before 9 AM. The MRGO channel itself stays cooler and holds fish through mid-morning.");
+      if (season === "fall") zt("MRGO Marsh", "Fall: reds schooling in large pods in the interior ponds — sight fishing with topwater or gold spoons. Best action of the year if you find the schools.");
     }
     if (zones.includes("pearl-river")) {
       if (highPearlRiver) {
-        zt("Pearl River", "Pearl River running high — salinity very low near the mouth. Largemouth bass along wood structure and hydrilla edges. Reds possible on the lower brackish stretch.");
-        zt("Pearl River", "Skip trout entirely — target bass on reaction baits and reds near the mouth.");
+        zt("Pearl River", `High water — largemouth bass on wood structure and hydrilla edges in river bends. Reds possible on the lower brackish stretch. Skip trout — salinity too low near the mouth.${isStrongWind ? " River corridor is sheltered from wind." : ""}`);
       } else {
-        zt("Pearl River", "Brackish transition zone — redfish and black drum near the mouth. Largemouth bass further upriver in fresher water.");
+        zt("Pearl River", `Brackish transition zone — reds and black drum near the mouth, largemouth bass further upriver in fresh water.${isStrongWind ? " River corridor is well-sheltered from wind — good fallback when open water is rough." : ""}`);
       }
-      if (isStrongWind) zt("Pearl River", "River corridor is well-sheltered from wind — good fallback zone when open water gets rough.");
-      if (season === "winter") zt("Pearl River", "Winter: bass in deeper river bends on wood structure — slow presentation critical. Reds concentrated at the lower mouth where salinity is highest. River temps stay slightly warmer than open marsh.");
-      if (season === "spring") zt("Pearl River", "Spring: bass spawning on shallow hard bottom and submerged wood in 2–4ft. Reds moving upriver as temps rise. Good topwater bass bite as water reaches 65°F.");
-      if (season === "summer") zt("Pearl River", "Summer: river corridor offers shade and slightly cooler water than open marsh. Bass on shaded banks and under overhanging vegetation. Fish very early — river bass go lockjaw after 9 AM in summer.");
-      if (season === "fall") zt("Pearl River", "Fall: bass very active as temps drop — reaction baits and moving lures productive. Reds stacking near the mouth. One of the better bass fisheries in the system this time of year.");
+      if (season === "winter") zt("Pearl River", "Winter: bass in deeper river bends on wood structure — slow presentations critical. Reds concentrated at the lower mouth where salinity is highest.");
+      if (season === "spring") zt("Pearl River", "Spring: bass spawning on shallow hard bottom and submerged wood in 2–4ft. Reds moving upriver as temps rise. Topwater bass bite when water hits 65°F.");
+      if (season === "summer") zt("Pearl River", "Summer: river corridor offers shade and cooler water. Bass on shaded banks and under overhanging vegetation. Fish very early — river bass go lockjaw after 9 AM.");
+      if (season === "fall") zt("Pearl River", "Fall: bass very active as temps drop — reaction baits and moving lures productive. Reds stacking near the mouth.");
     }
 
     const zoneTips = Object.entries(zoneMap).map(([label, tips]) => ({ label, tips }));
@@ -453,7 +478,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       .slice(0, 2);
 
     const topZoneId = whereToFish[0]?.zoneId ?? zones[0] ?? null;
-    const windTide = topZoneId ? windTideEffect(windDir, windSpeed, tideDir, topZoneId) : null;
+    const windTide = topZoneId ? windTideEffect(windDir, windSpeed, tideDir, topZoneId, { windwardBank, leewardBank }) : null;
     return { startTime, endTime, tideDir, tideChange, windDir, windSpeed, strategy, primarySpecies, zoneTips, whereToFish, betterZones, avoid, caution, windTide };
   });
 }
