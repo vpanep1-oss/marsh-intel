@@ -11,6 +11,24 @@ const WIND_DIR_DEG = { N:0, NNE:22.5, NE:45, ENE:67.5, E:90, ESE:112.5, SE:135, 
 
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 
+function fixRuleText(text) {
+  if (!text) return "";
+  let t = cap(text);
+  t = t.replace(/\blake st\.\s*catherine\s+cuts\/trenasses\b/gi, "Lake St. Catherine Cuts/Trenasses");
+  t = t.replace(/\blake st\.\s*catherine\s+cuts\b/gi, "Lake St. Catherine Cuts");
+  t = t.replace(/\blake st\.\s*catherine\b/gi, "Lake St. Catherine");
+  t = t.replace(/\blake catherine\s+cuts\/trenasses\b/gi, "Lake Catherine Cuts/Trenasses");
+  t = t.replace(/\blake catherine\s+cuts\b/gi, "Lake Catherine Cuts");
+  t = t.replace(/\blake catherine\b/gi, "Lake Catherine");
+  t = t.replace(/\bchef\s+pass\b/gi, "Chef Pass");
+  t = t.replace(/\blake borgne\b/gi, "Lake Borgne");
+  t = t.replace(/\bmrgo\s+interior\s+marsh\b/gi, "MRGO Interior Marsh");
+  t = t.replace(/\bmrgo\b/gi, "MRGO");
+  t = t.replace(/\bpearl\s+river\b/gi, "Pearl River");
+  t = t.replace(/\biww\b/gi, "IWW");
+  return t;
+}
+
 // Bearing (degrees) that water flows TOWARD during each tide phase per zone
 const ZONE_TIDE_BEARINGS = {
   "lake-st-catherine":    { flood: 270, ebb: 90  }, // floods in from Borgne (W into lake), ebbs E back to Borgne
@@ -236,8 +254,8 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     const activeRules = allRules.filter(r =>
       zones.some(z => r.zones.includes(z)) && matchRule(r, { windDir, windSpeed, tideDir })
     );
-    const avoid = activeRules.filter(r => r.flag === "avoid").map(r => r.reason);
-    const caution = activeRules.filter(r => r.flag === "caution").map(r => r.reason);
+    const avoid = activeRules.filter(r => r.flag === "avoid").map(r => fixRuleText(r.reason));
+    const caution = activeRules.filter(r => r.flag === "caution").map(r => fixRuleText(r.reason));
     const hasWind = !!windDir;
     const isStrongWind = hasWind && windSpeed >= 10;
     const isModerateWind = hasWind && windSpeed >= 7;
@@ -2282,11 +2300,11 @@ export default function FishingTool() {
                 const watchouts = [];
                 plan.forEach(b => {
                   b.zoneTips.forEach(z => z.tips.filter(t => t.includes("⚠")).forEach(t => {
-                    const cleaned = cap(t.replace(/^⚠\s*/, ""));
+                    const cleaned = fixRuleText(t.replace(/^⚠\s*/, ""));
                     if (!watchouts.includes(cleaned)) watchouts.push(cleaned);
                   }));
-                  b.avoid.forEach(a => { const s = cap(a); if (!watchouts.includes(s)) watchouts.push(s); });
-                  b.caution.forEach(c => { const s = `⚡ ${cap(c)}`; if (!watchouts.includes(s)) watchouts.push(s); });
+                  b.avoid.forEach(a => { if (!watchouts.includes(a)) watchouts.push(a); });
+                  b.caution.forEach(c => { const s = `⚡ ${c}`; if (!watchouts.includes(s)) watchouts.push(s); });
                 });
                 if (!watchouts.length) return null;
                 return (
