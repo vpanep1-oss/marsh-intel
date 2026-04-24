@@ -329,7 +329,10 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     const highRiver     = riverFt !== null && riverFt !== undefined && riverFt > 12;
     const highPearlRiver = pearlRiverFt !== null && pearlRiverFt !== undefined && pearlRiverFt > 10;
     const lowSalinity = salinityPpt !== null && salinityPpt !== undefined && salinityPpt < 5;
-    const troutAvailable = (!highRiver && !lowSalinity) || zones.includes("lake-borgne");
+    // Pearl River is a separate watershed — Mississippi/Carrollton gauge doesn't affect it
+    const nonPearlZones = zones.filter(z => z !== "pearl-river");
+    const highRiverAffects = highRiver && nonPearlZones.length > 0;
+    const troutAvailable = (!highRiverAffects && !lowSalinity) || zones.includes("lake-borgne");
 
     // Bank wind pushes bait against (downwind accumulation)
     const windwardBank = windFromSouth ? "north bank" : windFromNorth ? "south bank" : windFromEast ? "west bank" : "east bank";
@@ -371,13 +374,11 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       }
     }
 
-    if (highRiver || lowSalinity) {
-      const reason = highRiver
+    if (highRiverAffects || lowSalinity) {
+      const reason = highRiverAffects
         ? `Mississippi River at ${riverFt.toFixed(1)}ft — freshwater suppressing salinity.`
         : `Salinity at ${salinityPpt.toFixed(1)} ppt — below trout threshold.`;
       strategy.push(`⚠ ${reason} Trout displaced toward open Lake Borgne.`);
-      // Only surface the Borgne salinity note if Borgne is NOT the top recommended zone
-      // (if it is, the zone tips already cover this)
       const borgneIsTop = zones[0] === "lake-borgne";
       if (zones.includes("lake-borgne") && !borgneIsTop) {
         strategy.push("Lake Borgne in your zones — trout holding on shell reef edges in cleaner water on the east end.");
@@ -410,7 +411,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       }
       primarySpecies = [
         "Redfish — grass edges and points adjacent to drains",
-        highRiver ? "Largemouth Bass — grass lines and wood structure in low-salinity backwaters" : "Largemouth Bass — shaded structure, points, and grass edges near cuts",
+        highRiverAffects ? "Largemouth Bass — grass lines and wood structure in low-salinity backwaters" : "Largemouth Bass — shaded structure, points, and grass edges near cuts",
         ...(troutAvailable ? ["Speckled Trout — cut mouths, current rips, downcurrent of points"] : []),
         "Flounder — flat just downcurrent of cut exits, ambushing bait pushed out by the tide",
         "Black Drum — shell reef edges and hard bottom near drain mouths",
@@ -432,7 +433,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       }
       primarySpecies = [
         "Redfish — tailing on shallow flats, grass edges, pockets",
-        highRiver ? "Largemouth Bass — moving shallower with the tide in freshwater-pushed areas" : "Largemouth Bass — grass pockets, points, and upcurrent structure edges",
+        highRiverAffects ? "Largemouth Bass — moving shallower with the tide in freshwater-pushed areas" : "Largemouth Bass — grass pockets, points, and upcurrent structure edges",
         ...(troutAvailable ? ["Speckled Trout — wind-blown bait lines, shell reef edges, points"] : []),
         ...(tideChange >= 0.15 ? ["Flounder — staging near structure edges waiting for the drop"] : []),
         "Black Drum — shell reefs and oyster pads as water covers them on the rise",
@@ -1392,7 +1393,7 @@ export default function FishingTool() {
   const [tab, setTab] = useState("setup");
   const [coords, setCoords] = useState([{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}]);
   const coordsRef = useRef([{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""},{lat:"",lng:""}]);
-  const [zones, setZones] = useState(["lake-borgne"]);
+  const [zones, setZones] = useState([]);
   const [mapExpanded, setMapExpanded] = useState(true);
   const [tripStart, setTripStart] = useState("");
   const [tripEnd,   setTripEnd]   = useState("");
