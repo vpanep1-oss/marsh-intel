@@ -412,7 +412,8 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       if (tideDir === "rising" && windFromSouth && isStrongWind) {
         zt("Chef Pass", "⚠ Skip this window — rising tide with strong south wind makes this zone unfishable. Come back on the next falling tide or when wind lightens.");
       } else if (tideDir === "slack" && isModerateWind) {
-        zt("Chef Pass", `⚠ IWW acts as a wind funnel — ${windDir} wind at ${windSpeed}mph is channeled and amplified through the corridor. Fish the ${windwardBank}; ${leewardBank} has no current and no fish.`);
+        zt("Chef Pass", "⚠ IWW acts as a wind funnel — wind channels through the corridor and is amplified. Avoid open-water mid-corridor drifts.");
+        zt("Chef Pass", `Fish the ${windwardBank}; ${leewardBank} has no current and no fish.`);
       } else if (tideDir === "falling") {
         zt("Chef Pass", isModerateWind
           ? `Downtide/downwind corner of cut mouths — ${windDir} wind and falling tide funneling bait to the same point. ${cap(windwardBank)} edges first. Flounder, reds, and trout all stack here.`
@@ -2281,11 +2282,11 @@ export default function FishingTool() {
                 const watchouts = [];
                 plan.forEach(b => {
                   b.zoneTips.forEach(z => z.tips.filter(t => t.includes("⚠")).forEach(t => {
-                    const cleaned = t.replace(/^⚠\s*/, "");
+                    const cleaned = cap(t.replace(/^⚠\s*/, ""));
                     if (!watchouts.includes(cleaned)) watchouts.push(cleaned);
                   }));
-                  b.avoid.forEach(a => { if (!watchouts.includes(a)) watchouts.push(a); });
-                  b.caution.forEach(c => { const s = `⚡ ${c}`; if (!watchouts.includes(s)) watchouts.push(s); });
+                  b.avoid.forEach(a => { const s = cap(a); if (!watchouts.includes(s)) watchouts.push(s); });
+                  b.caution.forEach(c => { const s = `⚡ ${cap(c)}`; if (!watchouts.includes(s)) watchouts.push(s); });
                 });
                 if (!watchouts.length) return null;
                 return (
