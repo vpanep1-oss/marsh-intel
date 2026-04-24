@@ -79,7 +79,6 @@ const ZONE_TIDE_BEARINGS = {
   "lake-st-catherine":    { flood: 270, ebb: 90  }, // floods in from Borgne (W into lake), ebbs E back to Borgne
   "lake-catherine-cuts":  { flood: 0,   ebb: 180 }, // floods N into interior marsh, ebbs S to open lake
   "chef-pass":            { flood: 270, ebb: 90  }, // IWW/pass floods W toward Pontchartrain, ebbs E toward Gulf
-  "lake-borgne":          { flood: 315, ebb: 135 }, // Gulf water enters SE, floods NW; ebbs SE toward passes
   "mrgo-interior":        { flood: 315, ebb: 135 }, // MRGO corridor: floods NW up channel, ebbs SE toward Gulf
   "pearl-river":          { flood: 0,   ebb: 180 }, // tide floods N up river, river+ebb flows S to Gulf
 };
@@ -88,7 +87,6 @@ const ZONES = [
   { id: "lake-st-catherine",   label: "Lake St. Catherine",           lat: 30.128471, lng: -89.732639 },
   { id: "lake-catherine-cuts", label: "Lake Catherine Cuts / Trenasses", lat: 30.100468, lng: -89.716792 },
   { id: "chef-pass",           label: "Chef Pass / IWW",              lat: 30.055496, lng: -89.779941 },
-  { id: "lake-borgne",         label: "Lake Borgne",                  lat: 30.025261, lng: -89.640657 },
   { id: "mrgo-interior",       label: "MRGO Interior Marsh",          lat: 29.913747, lng: -89.775867 },
   { id: "pearl-river",         label: "Pearl River Marsh",            lat: 30.197734, lng: -89.614093 },
 ];
@@ -207,8 +205,6 @@ function windTideEffect(windDir, windSpeed, tideDir, zoneId, { windwardBank = ""
 // ─── ZONE SCORING ─────────────────────────────────────────────────────────────
 function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, salinityPpt }) {
   const sBadWind  = ["S","SSW","SSE"].includes(windDir) && windSpeed >= 10;
-  // True E wind only — SE is too common to be a meaningful Borgne differentiator
-  const eWind     = ["E","ESE","ENE"].includes(windDir);
   const nWind     = ["N","NNW","NNE","NW","NE"].includes(windDir);
   const roughWind = windSpeed >= 15;
   const modWind   = windSpeed >= 8 && windSpeed < 15;
@@ -233,13 +229,6 @@ function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, hig
     else if (roughWind && nWind) s += 1; // N wind — IWW corridor is sheltered
     else if (roughWind) s -= 2;
     if (season === "spring" || season === "fall") s += 1;
-
-  } else if (zoneId === "lake-borgne") {
-    if (tideDir === "falling") s += 2; else if (tideDir === "rising") s += 1;
-    if (eWind) s += 2;
-    else if (sBadWind) s -= 1;
-    if (roughWind) s -= 3;
-    if (highRiver) s += 1; // salinity refuge when river is flooding, but conditions still drive primary pick
 
   } else if (zoneId === "mrgo-interior") {
     if (tideDir === "rising") s += 3; else if (tideDir === "falling") s += 2;
@@ -274,11 +263,6 @@ function getBestSpot(zoneId, { tideDir, windwardBank, highPearlRiver }) {
     if (tideDir === "falling") return { spot: "Cut mouth intersections with the IWW channel", reason: "Current rips form at junctions — predators ambush bait pushed out by the tide" };
     if (tideDir === "rising")  return { spot: "North bank grass and shell edges inside the pass", reason: "Rising tide activates grass edges along the north bank" };
     return { spot: `${cap(windwardBank)} of the IWW corridor`, reason: "Wind funnels through the IWW — fish the bank the wind hits directly" };
-  }
-  if (zoneId === "lake-borgne") {
-    if (tideDir === "falling") return { spot: "West-end shell reef edges and current points", reason: "Falling tide pushes bait off the reefs — trout and reds on the downcurrent side" };
-    if (tideDir === "rising")  return { spot: "North and west shoreline shell reefs", reason: "Upcurrent face as water rises — trout and reds stacking on the lip" };
-    return { spot: `${cap(windwardBank)} shell reefs`, reason: "Slack tide — wind driving bait onto these reefs right now" };
   }
   if (zoneId === "mrgo-interior") {
     if (tideDir === "rising") return { spot: "Shallow pond edges and grass lines", reason: "Water fills the interior — tailing reds and drum rooting on the grass edge" };
@@ -332,7 +316,9 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     // Pearl River is a separate watershed — Mississippi/Carrollton gauge doesn't affect it
     const nonPearlZones = zones.filter(z => z !== "pearl-river");
     const highRiverAffects = highRiver && nonPearlZones.length > 0;
-    const troutAvailable = (!highRiverAffects && !lowSalinity) || zones.includes("lake-borgne");
+    const troutAvailable = !highRiverAffects && !lowSalinity;
+    // Calm enough to work exposed open-water edges (Borgne shoreline, MRGO channel, river mouth)
+    const calmedge = windSpeed < 6;
 
     // Bank wind pushes bait against (downwind accumulation)
     const windwardBank = windFromSouth ? "north bank" : windFromNorth ? "south bank" : windFromEast ? "west bank" : "east bank";
@@ -376,15 +362,9 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
 
     if (highRiverAffects || lowSalinity) {
       const reason = highRiverAffects
-        ? `Mississippi River at ${riverFt.toFixed(1)}ft — freshwater suppressing salinity.`
+        ? `Mississippi River at ${riverFt.toFixed(1)}ft — freshwater suppressing salinity across the system.`
         : `Salinity at ${salinityPpt.toFixed(1)} ppt — below trout threshold.`;
-      strategy.push(`⚠ ${reason} Trout displaced toward open Lake Borgne.`);
-      const borgneIsTop = zones[0] === "lake-borgne";
-      if (zones.includes("lake-borgne") && !borgneIsTop) {
-        strategy.push("Lake Borgne in your zones — trout holding on shell reef edges in cleaner water on the east end.");
-      } else if (!zones.includes("lake-borgne")) {
-        strategy.push("Your zones don't cover Lake Borgne — trout are not a realistic target today. Focus on redfish, black drum, and bass.");
-      }
+      strategy.push(`⚠ ${reason} Trout seeking deeper, saltier water — not a realistic target today. Focus on redfish, black drum, and bass.`);
     }
 
     if (tideDir === "slack") {
@@ -444,15 +424,18 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     if (zones.includes("lake-st-catherine")) {
       if (isStrongWind) zt("Lake St. Catherine", `⚠ ${windSpeed}mph ${windDir} — chop builds fast on this shallow system. Stay tight to the ${windwardBank} and avoid open mid-lake drifts.`);
       if (tideDir === "falling") {
-        zt("Lake St. Catherine", `Shell reef edges and cut mouths on the south end — falling tide pulling bait toward Borgne. Black drum stacked on shell pads; slow-roll a crab. Watch for birds over the exits.`);
+        zt("Lake St. Catherine", `South-end shell reef edges and cut mouths — falling tide pulls bait out toward Borgne. Black drum stacked on shell pads; slow-roll a crab. Watch for birds over the exits.`);
+        if (calmedge) zt("Lake St. Catherine", `Wind under 5mph — the rocky Borgne-facing south shoreline is accessible. Fish the leeward side of the rock points and shell edges; trout${troutAvailable ? " and reds" : ""} hold in the current seam just off the rocks.`);
       } else if (tideDir === "rising" && windFromSouth) {
         zt("Lake St. Catherine", `South wind piling bait on the north shoreline — work the grass edges and potholes for reds${troutAvailable ? " and trout" : ""}. South bank has no action right now.`);
       } else if (tideDir === "rising") {
-        zt("Lake St. Catherine", `Drift shell reefs and grass points as water refills from Borgne.${isModerateWind ? ` ${cap(windwardBank)} edges hold the most bait — ${windDir} wind stacking here alongside the rising tide.` : " Black drum active on the reefs; trout on shell edges at first light."}`);
+        zt("Lake St. Catherine", `Shell reefs and grass points as water refills from the east.${isModerateWind ? ` ${cap(windwardBank)} edges hold the most bait — ${windDir} wind stacking here alongside the rising tide.` : " Black drum active on the reefs; trout on shell edges at first light."}`);
+        if (calmedge) zt("Lake St. Catherine", `Calm enough to work the south Borgne edge — leeward rock points and shell reef lips as water pushes in. Fish face upcurrent on the rocky drop-off.`);
       } else if (tideDir === "slack" && isModerateWind) {
         zt("Lake St. Catherine", `${cap(windwardBank)} grass edge and potholes — ${windDir} wind at ${windSpeed}mph is the only current. Work grass points and structure that breaks the wind line. ${cap(leewardBank)} is calm but dead.`);
       } else {
         zt("Lake St. Catherine", "Slack with no wind — fish are transitioning. Scout structure on the depth finder; expect slow action for 30–60 min.");
+        if (calmedge) zt("Lake St. Catherine", "Dead calm — run the south edge and scout the rocky Borgne shoreline. Trout hold along the rock/shell transition in this light; early morning topwater over the reef lip.");
       }
       if (season === "winter") zt("Lake St. Catherine", "Winter: reds schooled on dark mud on east and south banks absorbing solar heat. Trout off this lake — too shallow and cold. Bass on deeper grass edge transitions.");
       if (season === "spring") zt("Lake St. Catherine", "Spring: reds showing in potholes along the north grass edge. Bass spawning on hard bottom near grass transitions. Trout active on shell at first light.");
@@ -460,9 +443,10 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       if (season === "fall") zt("Lake St. Catherine", "Fall prime: trout on shell reef edges and grass points responding to topwater. Reds schooling near south-end cuts. Bass very active along grass transitions.");
     }
     if (zones.includes("lake-catherine-cuts")) {
-      if (isStrongWind) zt("Lake Catherine Cuts / Trenasses", "⚠ Strong wind creates standing waves at cut exits on exposed faces — approach from the leeward side and anchor before the mouth.");
+      if (isStrongWind) zt("Lake Catherine Cuts / Trenasses", "⚠ Strong wind creates standing waves at the Borgne-facing cut exits — approach from the leeward side and anchor up before the mouth.");
       if (tideDir === "falling") {
         zt("Lake Catherine Cuts / Trenasses", `Downcurrent face of the cut exits — ${troutAvailable ? "flounder, trout, and reds" : "flounder and reds"} stacking just outside the mouth. Even 0.25ft of drop creates a strong rip through a tight throat. Position on the downtide side and let the current do the work.`);
+        if (calmedge) zt("Lake Catherine Cuts / Trenasses", `Calm enough to work the open Borgne side of the cut mouths — the rocky points and shell edges just outside each exit hold fish in the current seam. Fish face into the outflow; position off the leeward rock point.`);
       } else if (tideDir === "rising") {
         zt("Lake Catherine Cuts / Trenasses", `Inside (upcurrent) face of cut throats — reds and flounder hold on the upcurrent lip as water pushes in. Don't sit outside the mouth; fish have moved to the upcurrent edge.`);
       } else if (tideDir === "slack" && isModerateWind) {
@@ -471,23 +455,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
         zt("Lake Catherine Cuts / Trenasses", "Slack with no wind — cuts are dead right now. Reposition for the next tide phase.");
       }
       if (season === "winter") zt("Lake Catherine Cuts / Trenasses", "Winter: cuts hold the warmest water in the system — current keeps temps above the open lake. Reds stacked in deeper cut throats. Bass on inside grass edges.");
-      if (season === "fall") zt("Lake Catherine Cuts / Trenasses", "Fall: flounder staging at cut exits ahead of Gulf migration — one of the best flounder windows of the year. Also prime for reds ambushing from cut edges.");
-    }
-    if (zones.includes("lake-borgne")) {
-      if (isStrongWind) zt("Lake Borgne", `⚠ ${windSpeed}mph ${windDir} — open water gets dangerous fast. Stay inside 1 mile of the shoreline and keep a bailout route to the cut system.`);
-      if (tideDir === "falling") {
-        zt("Lake Borgne", `Shell reef edges and current points on the downcurrent side — trout and reds staging as tide pulls bait off the reefs.${isModerateWind ? ` ${cap(windwardBank)} reefs get both current and wind push — priority spots.` : " Look for birds over bait schools on the west end."}`);
-      } else if (tideDir === "rising") {
-        zt("Lake Borgne", `${cap(windwardBank)} shell reefs — trout and reds stacking on the upcurrent face as water rises.${isModerateWind ? ` ${windDir} wind reinforcing the push onto this bank — best bait concentration here.` : " Drift the upcurrent lip of each reef."}`);
-      } else if (tideDir === "slack" && isModerateWind) {
-        zt("Lake Borgne", `${cap(windwardBank)} shell reefs — ${windDir} wind at ${windSpeed}mph is stacking bait here. Work the reef edges and points. ${cap(leewardBank)} is calm but dead.`);
-      } else {
-        zt("Lake Borgne", "Slack with no wind — trout and reds holding tight to shell reef edges. Slow presentations on the bottom; scout with the depth finder.");
-      }
-      if (highRiver) zt("Lake Borgne", "Best salinity refuge in the system — cleaner water than interior marsh. Trout pushed here from the west; target shell reef edges on the east end.");
-      if (season === "winter") zt("Lake Borgne", "Winter: trout concentrated on deep shell reef edges (8–12ft) on the west end. Reds on mud flats along the north shore warming in sun.");
-      if (season === "fall") zt("Lake Borgne", "Fall: best trout bite of the year on shell reefs. Look for birds and slicks over bait schools. Reds schooling in large pods — nervous water on open flats signals fish underneath. Topwater productive early.");
-      if (season === "summer") zt("Lake Borgne", "Summer: open water heats fast — fish the deeper shell reef edges at first light. Trout go deep by 9 AM. East wind days give you cleaner, slightly cooler water.");
+      if (season === "fall") zt("Lake Catherine Cuts / Trenasses", "Fall: flounder staging at the Borgne-side cut exits ahead of Gulf migration — one of the best flounder windows of the year. Also prime for reds ambushing from cut edges.");
     }
     if (zones.includes("chef-pass")) {
       if (tideDir === "rising" && windFromSouth && isStrongWind) {
@@ -509,13 +477,16 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     if (zones.includes("mrgo-interior")) {
       if (tideDir === "falling") {
         zt("MRGO Interior Marsh", `Interior pond edges and drain mouths as water drops.${isModerateWind ? ` Fish the ${windwardBank} of each pond where wind and tide push bait to the same corner.` : ""} Gardner Island tide runs ~4hrs ahead of Shell Beach — verify your actual tide phase.`);
+        if (calmedge) zt("MRGO Interior Marsh", `Calm enough to work the MRGO channel edge — rocky channel margins hold reds and drum in slightly deeper, saltier water than the interior ponds. Fish the ${tideDir === "falling" ? "downcurrent" : "upcurrent"} side of any structure along the channel wall.`);
       } else if (tideDir === "rising") {
         zt("MRGO Interior Marsh", `Shallow pond edges and grass lines — tailing reds and black drum rooting on shell as water fills in.${isModerateWind ? ` ${cap(windwardBank)} of each pond gets the most bait push.` : ""}`);
+        if (calmedge) zt("MRGO Interior Marsh", `Calm enough for the MRGO channel edge — fish the upcurrent rocky margins as water rises. Cleaner and slightly saltier than the interior; trout possible along the channel wall on calm days.`);
       } else if (tideDir === "slack" && isModerateWind) {
         zt("MRGO Interior Marsh", `Interior ponds are protected from wind. Fish the ${windwardBank} of each pond — ${windDir} wind is the only current and bait is stacking on that bank. ${cap(leewardBank)} is dead.`);
       } else {
-        zt("MRGO Interior Marsh", "Slack with no wind — use this window to run to new ponds and scout with the depth finder.");
+        zt("MRGO Interior Marsh", "Slack with no wind — use this window to run to new ponds and scout the MRGO channel edge with the depth finder.");
       }
+      if (highRiver) zt("MRGO Interior Marsh", "High river pushing freshwater into interior ponds — fish the MRGO channel itself rather than the shallow ponds; the channel holds slightly cleaner water and concentrates fish pushed off the flats.");
       if (season === "winter") zt("MRGO Interior Marsh", "Winter: interior ponds cold and slow. Look for dark mud on south-facing pond edges absorbing sun — reds stack there on calm sunny days.");
       if (season === "spring") zt("MRGO Interior Marsh", "Spring: reds in every pothole and pond edge as water warms. Bass on structure edges. Best time to explore new ponds.");
       if (season === "summer") zt("MRGO Interior Marsh", "Summer: interior ponds superheat — get in and out before 9 AM. The MRGO channel itself stays cooler and holds fish through mid-morning.");
@@ -526,6 +497,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
         zt("Pearl River Marsh", `High water — largemouth bass on wood structure and hydrilla edges in river bends. Reds possible on the lower brackish stretch. Skip trout — salinity too low near the mouth.${isStrongWind ? " River corridor is sheltered from wind." : ""}`);
       } else {
         zt("Pearl River Marsh", `Brackish transition zone — reds and black drum near the mouth, largemouth bass further upriver in fresh water.${isStrongWind ? " River corridor is well-sheltered from wind — good fallback when open water is rough." : ""}`);
+        if (calmedge) zt("Pearl River Marsh", `Calm enough to work the open river mouth point — reds and drum stack at the exposed tip where river current meets the open lake. Fish the leeward side of the point; the windward side gets muddy even in light wind. Trout possible on the saltier Gulf side of the mouth.`);
       }
       if (season === "winter") zt("Pearl River Marsh", "Winter: bass in deeper river bends on wood structure — slow presentations critical. Reds concentrated at the lower mouth where salinity is highest.");
       if (season === "spring") zt("Pearl River Marsh", "Spring: bass spawning on shallow hard bottom and submerged wood in 2–4ft. Reds moving upriver as temps rise. Topwater bass bite when water hits 65°F.");
