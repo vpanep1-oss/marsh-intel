@@ -11,7 +11,7 @@ const WIND_DIR_DEG = { N:0, NNE:22.5, NE:45, ENE:67.5, E:90, ESE:112.5, SE:135, 
 
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 
-// Accepts HH:MM, HHMM, H:MM — always returns "HH:MM" or null if unparseable
+// Accepts HH:MM, HHMM, HMM — always returns "HH:MM" (24-hr) or null
 function parseTimeInput(raw) {
   const s = (raw || "").trim().replace(/\s/g, "");
   const withColon = s.match(/^(\d{1,2}):(\d{2})$/);
@@ -24,7 +24,36 @@ function parseTimeInput(raw) {
     const h = parseInt(plain4[1], 10), m = parseInt(plain4[2], 10);
     if (h < 24 && m < 60) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
   }
+  const plain3 = s.match(/^(\d)(\d{2})$/);
+  if (plain3) {
+    const h = parseInt(plain3[1], 10), m = parseInt(plain3[2], 10);
+    if (h < 24 && m < 60) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  }
   return null;
+}
+
+function formatTime12(hhmm) {
+  if (!hhmm || !hhmm.includes(":")) return hhmm;
+  const [h, m] = hhmm.split(":").map(Number);
+  if (isNaN(h) || isNaN(m)) return hhmm;
+  const period = h < 12 ? "AM" : "PM";
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(m).padStart(2,"0")} ${period}`;
+}
+
+function TimeInput({ value, onChange, placeholder = "HH:MM", style }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      type="text"
+      placeholder={placeholder}
+      style={style}
+      value={focused ? value : (value ? formatTime12(value) : "")}
+      onChange={e => onChange(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={e => { const t = parseTimeInput(e.target.value); if (t) onChange(t); setFocused(false); }}
+    />
+  );
 }
 
 function fixRuleText(text) {
@@ -983,13 +1012,9 @@ function TimeBlockForm({ block, index, onChange, onRemove }) {
     <div className="tbf">
       <div className="fr">
         <label>Start</label>
-        <input type="text" placeholder="HH:MM" value={block.startTime}
-          onChange={e => onChange(index, "startTime", e.target.value)}
-          onBlur={e => { const t = parseTimeInput(e.target.value); if (t) onChange(index, "startTime", t); }} />
+        <TimeInput value={block.startTime} onChange={v => onChange(index, "startTime", v)} />
         <label>End</label>
-        <input type="text" placeholder="HH:MM" value={block.endTime}
-          onChange={e => onChange(index, "endTime", e.target.value)}
-          onBlur={e => { const t = parseTimeInput(e.target.value); if (t) onChange(index, "endTime", t); }} />
+        <TimeInput value={block.endTime} onChange={v => onChange(index, "endTime", v)} />
       </div>
       <div className="fr">
         <label>Tide</label>
@@ -1976,13 +2001,11 @@ export default function FishingTool() {
                   </div>
                   <div>
                     <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Trip Start</div>
-                    <input type="text" placeholder="HH:MM" value={tripStart} onChange={e => setTripStart(e.target.value)}
-                      onBlur={e => { const t = parseTimeInput(e.target.value); if (t) setTripStart(t); }} />
+                    <TimeInput value={tripStart} onChange={setTripStart} />
                   </div>
                   <div>
                     <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Trip End</div>
-                    <input type="text" placeholder="HH:MM" value={tripEnd} onChange={e => setTripEnd(e.target.value)}
-                      onBlur={e => { const t = parseTimeInput(e.target.value); if (t) setTripEnd(t); }} />
+                    <TimeInput value={tripEnd} onChange={setTripEnd} />
                   </div>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
