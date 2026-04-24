@@ -855,72 +855,101 @@ function BlockCard({ block }) {
   const hasAvoid = block.avoid.length > 0;
   const hasCaution = block.caution.length > 0;
   const hasZoneWarning = block.zoneTips.some(z => z.tips.some(t => t.includes("⚠")));
+  const topSpot = block.whereToFish?.[0];
+
+  // Compose lead paragraph from top spot + first 2 non-warning strategy items
+  const strategyLines = block.strategy.filter(s => !s.includes("⚠") && !s.includes("△"));
+  const leadParts = [];
+  if (topSpot) leadParts.push(`${topSpot.spot} in ${topSpot.zone} — ${topSpot.reason}.`);
+  strategyLines.slice(0, 2).forEach(s => leadParts.push(s));
+  const leadText = leadParts.join(" ");
+
   return (
     <div className={`bc ${block.tideDir}${hasAvoid ? " bw" : ""}`}>
       <div className="bh" onClick={() => setOpen(o => !o)}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span className="bt">{block.startTime} – {block.endTime}</span>
-          <span className={`ti ${block.tideDir}`}>{block.tideDir === "falling" ? "↓" : block.tideDir === "rising" ? "↑" : "—"}</span>
-          <span className={`badge tb-${block.tideDir}`}>{block.tideDir}</span>
-          <span className="badge wb">{block.windDir} {block.windSpeed}mph</span>
-          {block.tideChange > 0 && <span className="badge" style={{ background: "rgba(255,255,255,0.04)", color: "#5a7a94" }}>Δ{block.tideChange}ft</span>}
-          {hasAvoid && <span className="badge" style={{ background: "rgba(224,90,43,0.15)", color: "#e05a2b" }}>⚠ Rule Triggered</span>}
-          {hasZoneWarning && !hasAvoid && <span className="badge" style={{ background: "rgba(224,90,43,0.15)", color: "#e05a2b" }}>⚠ Zone Warning</span>}
-          {hasCaution && !hasAvoid && !hasZoneWarning && <span className="badge" style={{ background: "rgba(200,160,0,0.12)", color: "#c8a000" }}>⚡ Caution</span>}
+        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <span className="bt">{block.startTime} – {block.endTime}</span>
+            {topSpot && <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.72rem", color:"#00c8a0" }}>| {topSpot.zone}</span>}
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+            <span className={`badge tb-${block.tideDir}`}>{block.tideDir === "falling" ? "↓" : block.tideDir === "rising" ? "↑" : "—"} {block.tideDir}</span>
+            {block.windDir && <span className="badge wb">{block.windDir} {block.windSpeed}mph</span>}
+            {block.tideChange > 0 && <span className="badge" style={{ background:"rgba(255,255,255,0.04)", color:"#5a7a94" }}>Δ{block.tideChange}ft</span>}
+            {hasAvoid && <span className="badge" style={{ background:"rgba(224,90,43,0.15)", color:"#e05a2b" }}>⚠ Rule Triggered</span>}
+            {hasZoneWarning && !hasAvoid && <span className="badge" style={{ background:"rgba(224,90,43,0.15)", color:"#e05a2b" }}>⚠ Zone Warning</span>}
+            {hasCaution && !hasAvoid && !hasZoneWarning && <span className="badge" style={{ background:"rgba(200,160,0,0.12)", color:"#c8a000" }}>⚡ Caution</span>}
+          </div>
         </div>
-        <span style={{ fontSize: "0.65rem", color: "#5a7a94" }}>{open ? "▲" : "▼"}</span>
+        <span style={{ fontSize:"0.65rem", color:"#5a7a94" }}>{open ? "▲" : "▼"}</span>
       </div>
       {open && (
         <div className="bb">
-          {/* WHERE TO FISH */}
-          {block.whereToFish?.length > 0 && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.6rem", letterSpacing: 2, textTransform: "uppercase", color: "#5a7a94", marginBottom: 7 }}>Where to Fish</div>
-              <ul style={{ listStyle: "none" }}>
-                {block.whereToFish.map((w, i) => (
-                  <li key={i} style={{ fontSize: "0.855rem", lineHeight: 1.55, paddingLeft: 20, position: "relative", marginBottom: 6 }}>
-                    <span style={{ position: "absolute", left: 0, fontFamily: "IBM Plex Mono, monospace", fontSize: "0.65rem", color: i === 0 ? "#f0a500" : "#5a7a94", fontWeight: 700 }}>{i + 1}.</span>
-                    <span style={{ color: i === 0 ? "#f0e0a0" : "#d0e4f0", fontWeight: i === 0 ? 600 : 400 }}>{w.zone} — {w.spot}</span>
-                    <span style={{ color: "#5a7a94", fontSize: "0.8rem" }}> · {w.reason}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {/* BETTER ZONE ALERT */}
-          {block.betterZones?.length > 0 && (
-            <div style={{ marginBottom: 12, background: "rgba(74,176,255,0.05)", border: "1px solid rgba(74,176,255,0.2)", borderRadius: 7, padding: "10px 13px" }}>
-              <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.6rem", letterSpacing: 2, textTransform: "uppercase", color: "#4ab0ff", marginBottom: 6 }}>🎯 Better Zone This Block</div>
-              {block.betterZones.map((z, i) => (
-                <div key={i} style={{ fontSize: "0.84rem", color: "#a0c8f0", lineHeight: 1.5, marginBottom: i < block.betterZones.length - 1 ? 6 : 0 }}>
-                  <span style={{ color: "#4ab0ff", fontWeight: 600 }}>{z.zone}</span> — {z.spot} · <span style={{ color: "#5a7a94" }}>{z.reason}</span>
-                </div>
+          {/* LEAD PARAGRAPH */}
+          {leadText && <p style={{ fontSize:"0.88rem", color:"#d0e4f0", lineHeight:1.75, marginBottom:14 }}>{leadText}</p>}
+
+          {/* ADDITIONAL SPOTS */}
+          {block.whereToFish?.length > 1 && (
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", letterSpacing:2, textTransform:"uppercase", color:"#5a7a94", marginBottom:7 }}>Also Worth Fishing</div>
+              {block.whereToFish.slice(1).map((w, i) => (
+                <p key={i} style={{ fontSize:"0.84rem", color:"#a0b8cc", lineHeight:1.65, marginBottom:5 }}>
+                  <span style={{ color:"#d0e4f0" }}>{w.zone} — {w.spot}.</span> {w.reason}.
+                </p>
               ))}
             </div>
           )}
-          {block.strategy.length > 0 && <Section title="Strategy" items={block.strategy} />}
-          {block.primarySpecies.length > 0 && <Section title="Target Species" items={block.primarySpecies} color="#00c8a0" />}
+
+          {/* ZONE TIPS AS PROSE */}
           {block.zoneTips.length > 0 && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.6rem", letterSpacing: 2, textTransform: "uppercase", color: "#5a7a94", marginBottom: 7 }}>Zone Tips</div>
-              <ul style={{ listStyle: "none" }}>
-                {block.zoneTips.map(({ label, tips }, i) => (
-                  <li key={i} style={{ fontSize: "0.855rem", lineHeight: 1.55, paddingLeft: 13, position: "relative", marginBottom: 4 }}>
-                    <span style={{ position: "absolute", left: 0, color: "#00c8a0" }}>›</span>
-                    <span style={{ color: "#d0e4f0" }}>{label}: </span>
-                    {tips.map((tip, j) => {
-                      const isWarn = tip.includes("⚠");
-                      return (
-                        <span key={j} style={{ color: isWarn ? "#f08070" : "#d0e4f0" }}>
-                          {j > 0 && " "}{tip}
-                        </span>
-                      );
-                    })}
-                  </li>
-                ))}
-              </ul>
+            <div style={{ marginBottom:14 }}>
+              {block.zoneTips.map(({ label, tips }, i) => {
+                const normal = tips.filter(t => !t.includes("⚠"));
+                const warns  = tips.filter(t => t.includes("⚠"));
+                return (
+                  <div key={i} style={{ marginBottom:10 }}>
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", letterSpacing:1, textTransform:"uppercase", color:"#5a7a94", marginBottom:4 }}>{label}</div>
+                    {normal.length > 0 && <p style={{ fontSize:"0.84rem", color:"#d0e4f0", lineHeight:1.65, marginBottom: warns.length ? 5 : 0 }}>{normal.join(" ")}</p>}
+                    {warns.map((t, j) => <p key={j} style={{ fontSize:"0.84rem", color:"#f08070", lineHeight:1.65, marginBottom:0 }}>{t}</p>)}
+                  </div>
+                );
+              })}
             </div>
           )}
+
+          {/* REMAINING STRATEGY LINES */}
+          {strategyLines.length > 2 && (
+            <div style={{ marginBottom:14 }}>
+              {strategyLines.slice(2).map((s, i) => (
+                <p key={i} style={{ fontSize:"0.84rem", color:"#a0b8cc", lineHeight:1.65, marginBottom:4 }}>{s}</p>
+              ))}
+            </div>
+          )}
+
+          {/* TARGET SPECIES — inline pills */}
+          {block.primarySpecies.length > 0 && (
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12, alignItems:"center" }}>
+              <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"#5a7a94" }}>TARGET:</span>
+              {block.primarySpecies.map((s, i) => (
+                <span key={i} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", padding:"3px 9px", borderRadius:12, border:"1px solid rgba(0,200,160,0.3)", color:"#00c8a0", background:"rgba(0,200,160,0.06)" }}>
+                  {s.split(" — ")[0]}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* BETTER ZONE */}
+          {block.betterZones?.length > 0 && (
+            <div style={{ marginBottom:12, background:"rgba(74,176,255,0.05)", border:"1px solid rgba(74,176,255,0.2)", borderRadius:7, padding:"10px 13px" }}>
+              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", letterSpacing:2, textTransform:"uppercase", color:"#4ab0ff", marginBottom:6 }}>🎯 Better Zone This Block</div>
+              {block.betterZones.map((z, i) => (
+                <p key={i} style={{ fontSize:"0.84rem", color:"#a0c8f0", lineHeight:1.5, marginBottom: i < block.betterZones.length - 1 ? 6 : 0 }}>
+                  <span style={{ color:"#4ab0ff", fontWeight:600 }}>{z.zone}</span> — {z.spot}. {z.reason}.
+                </p>
+              ))}
+            </div>
+          )}
+
           {hasCaution && <Section title="⚡ Caution" items={block.caution} color="#c8a000" />}
           {hasAvoid && <Section title="⚠ Avoid" items={block.avoid} color="#e05a2b" textColor="#f08070" />}
         </div>
@@ -2097,6 +2126,65 @@ export default function FishingTool() {
                 );
               })()}
               {plan.map((b,i) => <BlockCard key={i} block={b} />)}
+
+              {/* KEY WATCHOUTS */}
+              {(() => {
+                const watchouts = [];
+                plan.forEach(b => {
+                  b.zoneTips.forEach(z => z.tips.filter(t => t.includes("⚠")).forEach(t => {
+                    const cleaned = t.replace(/^⚠\s*/, "");
+                    if (!watchouts.includes(cleaned)) watchouts.push(cleaned);
+                  }));
+                  b.avoid.forEach(a => { if (!watchouts.includes(a)) watchouts.push(a); });
+                  b.caution.forEach(c => { const s = `⚡ ${c}`; if (!watchouts.includes(s)) watchouts.push(s); });
+                });
+                if (!watchouts.length) return null;
+                return (
+                  <div className="card" style={{ marginTop:18, borderLeft:"3px solid #e05a2b" }}>
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", letterSpacing:2, textTransform:"uppercase", color:"#e05a2b", marginBottom:10 }}>⚠ Key Watchouts</div>
+                    {watchouts.map((w, i) => (
+                      <p key={i} style={{ fontSize:"0.85rem", color: w.startsWith("⚡") ? "#c8a000" : "#f08070", lineHeight:1.7, marginBottom: i < watchouts.length - 1 ? 7 : 0 }}>
+                        {w}
+                      </p>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* BOTTOM LINE */}
+              {(() => {
+                const allSpots = plan.flatMap(b => b.whereToFish || []);
+                const topSpot = [...allSpots].sort((a, b) => b.score - a.score)[0];
+                const bestBlock = topSpot ? plan.find(b => (b.whereToFish || []).some(w => w.spot === topSpot.spot)) : plan[0];
+                const anyAvoid = plan.some(b => b.avoid.length > 0);
+                const anyFallHigh = plan.some(b => b.strategy.some(s => s.toLowerCase().includes("fall")));
+                const species = bestBlock?.primarySpecies?.[0]?.split(" — ")[0] ?? "Redfish";
+                const bestWindow = bestBlock ? `${bestBlock.startTime}–${bestBlock.endTime}` : "";
+                const tideSentence = bestBlock?.tideDir === "falling"
+                  ? "Falling tide is your primary trigger — concentrate at drain mouths and cut exits during the drop."
+                  : bestBlock?.tideDir === "rising"
+                  ? "Rising tide is pushing bait into the marsh — follow it shallower and work grass edges."
+                  : "Slack water mid-day — use that window to run and scout structure.";
+                const riverNote = riverFt !== null && riverFt > 12
+                  ? ` River running high at ${riverFt.toFixed(1)}ft — salinity suppressed, trout pushed toward Lake Borgne.`
+                  : "";
+                const avoidNote = anyAvoid ? " Rule triggered for one or more blocks — check the red ⚠ flags above before committing to those spots." : "";
+                const sentences = [
+                  topSpot ? `Best window: ${bestWindow} — ${topSpot.spot} in ${topSpot.zone}. ${topSpot.reason}.` : "",
+                  tideSentence,
+                  `Primary target is ${species}.${riverNote}`,
+                  avoidNote,
+                ].filter(Boolean);
+                return (
+                  <div className="card" style={{ marginTop:12, borderLeft:"3px solid #00c8a0" }}>
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", letterSpacing:2, textTransform:"uppercase", color:"#00c8a0", marginBottom:10 }}>✓ Bottom Line</div>
+                    {sentences.map((s, i) => (
+                      <p key={i} style={{ fontSize:"0.86rem", color: s.startsWith(" Rule") ? "#c8a000" : "#d0e4f0", lineHeight:1.75, marginBottom: i < sentences.length - 1 ? 8 : 0 }}>{s}</p>
+                    ))}
+                  </div>
+                );
+              })()}
+
               {notes && (
                 <>
                   <div className="sl" style={{ marginTop:18 }}>Trip Notes</div>
