@@ -292,21 +292,25 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
         ? `Mississippi River at ${riverFt.toFixed(1)}ft — freshwater suppressing salinity.`
         : `Salinity at ${salinityPpt.toFixed(1)} ppt — below trout threshold.`;
       strategy.push(`⚠ ${reason} Trout displaced toward open Lake Borgne.`);
-      if (zones.includes("lake-borgne")) {
+      // Only surface the Borgne salinity note if Borgne is NOT the top recommended zone
+      // (if it is, the zone tips already cover this)
+      const borgneIsTop = zones[0] === "lake-borgne";
+      if (zones.includes("lake-borgne") && !borgneIsTop) {
         strategy.push("Lake Borgne in your zones — trout holding on shell reef edges in cleaner water on the east end.");
-      } else {
+      } else if (!zones.includes("lake-borgne")) {
         strategy.push("Your zones don't cover Lake Borgne — trout are not a realistic target today. Focus on redfish, black drum, and bass.");
       }
     }
 
     if (tideDir === "slack") {
-      strategy.push("Slack water — tidal current near zero. Fish are transitioning, not ambushing.");
       if (isModerateWind) {
-        strategy.push(`Wind at ${windSpeed}mph is now the dominant current — treat this like a wind tide.`);
+        // Wind present during slack — wind IS the current, skip the "tidal current near zero" generic lines
         strategy.push(`Fish the ${windwardBank} where bait is being pushed and stacked. Work the grass edge and any points that break the wind line.`);
         if (isStrongWind) strategy.push(`Avoid exposed open water — stay in protected cuts and behind-island shorelines to manage the chop.`);
         strategy.push(`${leewardBank.charAt(0).toUpperCase() + leewardBank.slice(1)} is calm but dead — bait is on the opposite side.`);
       } else {
+        // Truly light/no wind slack — these lines are useful
+        strategy.push("Slack water — tidal current near zero. Fish are transitioning, not ambushing.");
         strategy.push("Light wind and no tidal push — use this window to run to your next location and scout structure on the depth finder.");
         strategy.push("Expect 30–60 min of slow action depending on tidal amplitude.");
       }
