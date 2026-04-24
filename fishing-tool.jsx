@@ -206,39 +206,56 @@ function windTideEffect(windDir, windSpeed, tideDir, zoneId, { windwardBank = ""
 
 // ─── ZONE SCORING ─────────────────────────────────────────────────────────────
 function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, salinityPpt }) {
-  const sBadWind = ["S","SSW","SSE"].includes(windDir) && windSpeed >= 10;
-  const eWind    = ["E","ESE","SE","ENE"].includes(windDir);
+  const sBadWind  = ["S","SSW","SSE"].includes(windDir) && windSpeed >= 10;
+  // True E wind only — SE is too common to be a meaningful Borgne differentiator
+  const eWind     = ["E","ESE","ENE"].includes(windDir);
+  const nWind     = ["N","NNW","NNE","NW","NE"].includes(windDir);
+  const roughWind = windSpeed >= 15;
+  const modWind   = windSpeed >= 8 && windSpeed < 15;
   let s = 5;
+
   if (zoneId === "lake-st-catherine") {
-    if (tideDir === "falling") s += 2; else if (tideDir === "rising") s += 1;
-    if (windSpeed >= 15) s -= 3; else if (windSpeed <= 7) s += 1;
+    if (tideDir === "falling") s += 3; else if (tideDir === "rising") s += 2; else s -= 1;
+    if (roughWind) s -= 4; else if (modWind) s += 1;
     if (season === "fall" || season === "spring") s += 1;
     if (highRiver) s -= 1;
+
   } else if (zoneId === "lake-catherine-cuts") {
-    if (tideDir === "falling") s += 3; else if (tideDir === "rising") s += 1;
-    if (windSpeed >= 15) s -= 2;
-    if (season === "fall") s += 1;
+    // Best falling-tide zone in the system — current rips through tight throats
+    if (tideDir === "falling") s += 4; else if (tideDir === "rising") s += 2; else s -= 3;
+    if (roughWind) s -= 1;
+    if (season === "fall") s += 2;
+
   } else if (zoneId === "chef-pass") {
-    if (tideDir === "falling") s += 2;
+    if (tideDir === "falling") s += 3;
     else if (tideDir === "rising" && !sBadWind) s += 1;
-    if (sBadWind && tideDir === "rising") s -= 4;
+    if (sBadWind) s -= 4;
+    else if (roughWind && nWind) s += 1; // N wind — IWW corridor is sheltered
+    else if (roughWind) s -= 2;
     if (season === "spring" || season === "fall") s += 1;
+
   } else if (zoneId === "lake-borgne") {
-    if (tideDir === "falling") s += 2;
+    if (tideDir === "falling") s += 2; else if (tideDir === "rising") s += 1;
     if (eWind) s += 2;
-    if (windSpeed >= 15) s -= 3;
-    if (highRiver) s += 2;
-    if (!salinityPpt || salinityPpt >= 5) s += 1;
+    else if (sBadWind) s -= 1;
+    if (roughWind) s -= 3;
+    if (highRiver) s += 2; // best salinity refuge when river is flooding
+
   } else if (zoneId === "mrgo-interior") {
-    if (tideDir === "rising") s += 2;
-    if (windSpeed >= 12) s += 1;
-    if (season === "fall") s += 2; else if (season === "spring") s += 1;
+    if (tideDir === "rising") s += 3; else if (tideDir === "falling") s += 2;
+    // Sheltered ponds — rough wind is an advantage, not a penalty
+    if (roughWind) s += 2; else if (modWind) s += 1;
+    if (season === "fall") s += 2; else if (season === "spring") s += 1; else if (season === "summer") s -= 1;
     if (highRiver) s -= 2;
+
   } else if (zoneId === "pearl-river") {
     if (highPearlRiver) s += 2;
-    if (windSpeed >= 12) s += 2;
+    // Most sheltered zone in the system — rough wind is the best time to be here
+    if (roughWind) s += 3; else if (modWind) s += 1;
     if (season === "fall" || season === "spring") s += 1;
+    else if (season === "summer") s -= 1;
   }
+
   return Math.max(0, Math.min(10, s));
 }
 
@@ -473,46 +490,46 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     }
     if (zones.includes("chef-pass")) {
       if (tideDir === "rising" && windFromSouth && isStrongWind) {
-        zt("Chef Pass", "⚠ Skip this window — rising tide with strong south wind makes this zone unfishable. Come back on the next falling tide or when wind lightens.");
+        zt("Chef Pass / IWW", "⚠ Skip this window — rising tide with strong south wind makes this zone unfishable. Come back on the next falling tide or when wind lightens.");
       } else if (tideDir === "slack" && isModerateWind) {
-        zt("Chef Pass", "⚠ IWW acts as a wind funnel — wind channels through the corridor and is amplified. Avoid open-water mid-corridor drifts.");
-        zt("Chef Pass", `Fish the ${windwardBank}; ${leewardBank} has no current and no fish.`);
+        zt("Chef Pass / IWW", "⚠ IWW acts as a wind funnel — wind channels through the corridor and is amplified. Avoid open-water mid-corridor drifts.");
+        zt("Chef Pass / IWW", `Fish the ${windwardBank}; ${leewardBank} has no current and no fish.`);
       } else if (tideDir === "falling") {
-        zt("Chef Pass", isModerateWind
+        zt("Chef Pass / IWW", isModerateWind
           ? `Downtide/downwind corner of cut mouths — ${windDir} wind and falling tide funneling bait to the same point. ${cap(windwardBank)} edges first. Flounder, reds, and trout all stack here.`
           : "Cut edges and grass points along IWW — flounder prime here on falling tide. Target the sandy transition bottom just outside the grass, where flounder ambush bait pushed out by the current.");
       } else if (tideDir === "rising") {
-        zt("Chef Pass", `North bank grass and shell edges inside the pass — reds and black drum on the rise.${isModerateWind ? ` ${windDir} wind at ${windSpeed}mph adding bait push to the ${windwardBank}.` : ""}`);
+        zt("Chef Pass / IWW", `North bank grass and shell edges inside the pass — reds and black drum on the rise.${isModerateWind ? ` ${windDir} wind at ${windSpeed}mph adding bait push to the ${windwardBank}.` : ""}`);
       }
-      if (season === "winter") zt("Chef Pass", "Winter: IWW holds the warmest moving water in the area. Bass on wood structure inside the IWW. Reds schooled at the pass mouth.");
-      if (season === "spring") zt("Chef Pass", "Spring: bass spawning on hard bottom just inside the cuts off IWW — beds in 1–3ft of clear water. Reds and trout moving back in as water warms.");
-      if (season === "fall") zt("Chef Pass", "Fall: flounder stacking at Chef Pass mouth and IWW intersections. Work the sandy transition bottom — top fall flounder spot in the system.");
+      if (season === "winter") zt("Chef Pass / IWW", "Winter: IWW holds the warmest moving water in the area. Bass on wood structure inside the IWW. Reds schooled at the pass mouth.");
+      if (season === "spring") zt("Chef Pass / IWW", "Spring: bass spawning on hard bottom just inside the cuts off IWW — beds in 1–3ft of clear water. Reds and trout moving back in as water warms.");
+      if (season === "fall") zt("Chef Pass / IWW", "Fall: flounder stacking at Chef Pass mouth and IWW intersections. Work the sandy transition bottom — top fall flounder spot in the system.");
     }
     if (zones.includes("mrgo-interior")) {
       if (tideDir === "falling") {
-        zt("MRGO Marsh", `Interior pond edges and drain mouths as water drops.${isModerateWind ? ` Fish the ${windwardBank} of each pond where wind and tide push bait to the same corner.` : ""} Gardner Island tide runs ~4hrs ahead of Shell Beach — verify your actual tide phase.`);
+        zt("MRGO Interior Marsh", `Interior pond edges and drain mouths as water drops.${isModerateWind ? ` Fish the ${windwardBank} of each pond where wind and tide push bait to the same corner.` : ""} Gardner Island tide runs ~4hrs ahead of Shell Beach — verify your actual tide phase.`);
       } else if (tideDir === "rising") {
-        zt("MRGO Marsh", `Shallow pond edges and grass lines — tailing reds and black drum rooting on shell as water fills in.${isModerateWind ? ` ${cap(windwardBank)} of each pond gets the most bait push.` : ""}`);
+        zt("MRGO Interior Marsh", `Shallow pond edges and grass lines — tailing reds and black drum rooting on shell as water fills in.${isModerateWind ? ` ${cap(windwardBank)} of each pond gets the most bait push.` : ""}`);
       } else if (tideDir === "slack" && isModerateWind) {
-        zt("MRGO Marsh", `Interior ponds are protected from wind. Fish the ${windwardBank} of each pond — ${windDir} wind is the only current and bait is stacking on that bank. ${cap(leewardBank)} is dead.`);
+        zt("MRGO Interior Marsh", `Interior ponds are protected from wind. Fish the ${windwardBank} of each pond — ${windDir} wind is the only current and bait is stacking on that bank. ${cap(leewardBank)} is dead.`);
       } else {
-        zt("MRGO Marsh", "Slack with no wind — use this window to run to new ponds and scout with the depth finder.");
+        zt("MRGO Interior Marsh", "Slack with no wind — use this window to run to new ponds and scout with the depth finder.");
       }
-      if (season === "winter") zt("MRGO Marsh", "Winter: interior ponds cold and slow. Look for dark mud on south-facing pond edges absorbing sun — reds stack there on calm sunny days.");
-      if (season === "spring") zt("MRGO Marsh", "Spring: reds in every pothole and pond edge as water warms. Bass on structure edges. Best time to explore new ponds.");
-      if (season === "summer") zt("MRGO Marsh", "Summer: interior ponds superheat — get in and out before 9 AM. The MRGO channel itself stays cooler and holds fish through mid-morning.");
-      if (season === "fall") zt("MRGO Marsh", "Fall: reds schooling in large pods in the interior ponds — sight fishing with topwater or gold spoons. Best action of the year if you find the schools.");
+      if (season === "winter") zt("MRGO Interior Marsh", "Winter: interior ponds cold and slow. Look for dark mud on south-facing pond edges absorbing sun — reds stack there on calm sunny days.");
+      if (season === "spring") zt("MRGO Interior Marsh", "Spring: reds in every pothole and pond edge as water warms. Bass on structure edges. Best time to explore new ponds.");
+      if (season === "summer") zt("MRGO Interior Marsh", "Summer: interior ponds superheat — get in and out before 9 AM. The MRGO channel itself stays cooler and holds fish through mid-morning.");
+      if (season === "fall") zt("MRGO Interior Marsh", "Fall: reds schooling in large pods in the interior ponds — sight fishing with topwater or gold spoons. Best action of the year if you find the schools.");
     }
     if (zones.includes("pearl-river")) {
       if (highPearlRiver) {
-        zt("Pearl River", `High water — largemouth bass on wood structure and hydrilla edges in river bends. Reds possible on the lower brackish stretch. Skip trout — salinity too low near the mouth.${isStrongWind ? " River corridor is sheltered from wind." : ""}`);
+        zt("Pearl River Marsh", `High water — largemouth bass on wood structure and hydrilla edges in river bends. Reds possible on the lower brackish stretch. Skip trout — salinity too low near the mouth.${isStrongWind ? " River corridor is sheltered from wind." : ""}`);
       } else {
-        zt("Pearl River", `Brackish transition zone — reds and black drum near the mouth, largemouth bass further upriver in fresh water.${isStrongWind ? " River corridor is well-sheltered from wind — good fallback when open water is rough." : ""}`);
+        zt("Pearl River Marsh", `Brackish transition zone — reds and black drum near the mouth, largemouth bass further upriver in fresh water.${isStrongWind ? " River corridor is well-sheltered from wind — good fallback when open water is rough." : ""}`);
       }
-      if (season === "winter") zt("Pearl River", "Winter: bass in deeper river bends on wood structure — slow presentations critical. Reds concentrated at the lower mouth where salinity is highest.");
-      if (season === "spring") zt("Pearl River", "Spring: bass spawning on shallow hard bottom and submerged wood in 2–4ft. Reds moving upriver as temps rise. Topwater bass bite when water hits 65°F.");
-      if (season === "summer") zt("Pearl River", "Summer: river corridor offers shade and cooler water. Bass on shaded banks and under overhanging vegetation. Fish very early — river bass go lockjaw after 9 AM.");
-      if (season === "fall") zt("Pearl River", "Fall: bass very active as temps drop — reaction baits and moving lures productive. Reds stacking near the mouth.");
+      if (season === "winter") zt("Pearl River Marsh", "Winter: bass in deeper river bends on wood structure — slow presentations critical. Reds concentrated at the lower mouth where salinity is highest.");
+      if (season === "spring") zt("Pearl River Marsh", "Spring: bass spawning on shallow hard bottom and submerged wood in 2–4ft. Reds moving upriver as temps rise. Topwater bass bite when water hits 65°F.");
+      if (season === "summer") zt("Pearl River Marsh", "Summer: river corridor offers shade and cooler water. Bass on shaded banks and under overhanging vegetation. Fish very early — river bass go lockjaw after 9 AM.");
+      if (season === "fall") zt("Pearl River Marsh", "Fall: bass very active as temps drop — reaction baits and moving lures productive. Reds stacking near the mouth.");
     }
 
     const zoneTips = Object.entries(zoneMap).map(([label, tips]) => ({ label, tips }));
@@ -1045,17 +1062,12 @@ function BlockCard({ block }) {
   const hasAvoid = block.avoid.length > 0;
   const hasCaution = block.caution.length > 0;
 
-  // Primary recommendation: top-scoring zone
   const topSpot = block.whereToFish?.[0];
-  // Single fallback: next highest scoring zone
-  const altSpot = block.whereToFish?.[1] ?? null;
 
-  // Zone tips only for the top zone (and alt zone if it exists)
   const topZoneLabel = topSpot?.zone ?? null;
-  const altZoneLabel = altSpot?.zone ?? null;
   const primaryTips = block.zoneTips.find(z => z.label === topZoneLabel) ?? null;
-  const altTips     = block.zoneTips.find(z => z.label === altZoneLabel) ?? null;
   const hasZoneWarning = primaryTips?.tips.some(t => t.includes("⚠")) ?? false;
+  const fallbackSpots = block.whereToFish?.slice(1) ?? [];
 
   // Strategy lines (non-warning) for context
   const strategyLines = block.strategy.filter(s => !s.includes("⚠") && !s.includes("△"));
@@ -1117,23 +1129,24 @@ function BlockCard({ block }) {
             </div>
           )}
 
-          {/* SINGLE FALLBACK ZONE */}
-          {altSpot && (
-            <div style={{ marginBottom:14, background:"rgba(255,255,255,0.02)", borderLeft:"2px solid #2a4a6a", paddingLeft:12 }}>
-              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.58rem", letterSpacing:2, textTransform:"uppercase", color:"#5a7a94", marginBottom:5 }}>If conditions push you off {topZoneLabel}</div>
-              <p style={{ fontSize:"0.84rem", color:"#a0b8cc", lineHeight:1.65, marginBottom: altTips ? 6 : 0 }}>
-                <span style={{ color:"#d0e4f0" }}>{altSpot.zone} — {altSpot.spot}.</span> {altSpot.reason}.
-              </p>
-              {altTips && (() => {
-                const normal = altTips.tips.filter(t => !t.includes("⚠"));
-                const warns  = altTips.tips.filter(t => t.includes("⚠"));
+          {/* FALLBACK ZONES — all selected zones beyond the primary */}
+          {fallbackSpots.length > 0 && (
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.58rem", letterSpacing:2, textTransform:"uppercase", color:"#5a7a94", marginBottom:8 }}>If conditions push you off {topZoneLabel}</div>
+              {fallbackSpots.map((spot, idx) => {
+                const tips = block.zoneTips.find(z => z.label === spot.zone) ?? null;
+                const normal = tips?.tips.filter(t => !t.includes("⚠")) ?? [];
+                const warns  = tips?.tips.filter(t => t.includes("⚠")) ?? [];
                 return (
-                  <>
+                  <div key={idx} style={{ marginBottom: idx < fallbackSpots.length - 1 ? 10 : 0, background:"rgba(255,255,255,0.02)", borderLeft:"2px solid #2a4a6a", paddingLeft:12 }}>
+                    <p style={{ fontSize:"0.84rem", color:"#a0b8cc", lineHeight:1.65, marginBottom: tips ? 4 : 0 }}>
+                      <span style={{ color:"#d0e4f0" }}>{spot.zone} — {spot.spot}.</span> {spot.reason}.
+                    </p>
                     {normal.length > 0 && <p style={{ fontSize:"0.82rem", color:"#8090a0", lineHeight:1.6, marginBottom: warns.length ? 4 : 0 }}>{normal.join(" ")}</p>}
                     {warns.map((t, j) => <p key={j} style={{ fontSize:"0.82rem", color:"#f08070", lineHeight:1.6, marginBottom:0 }}>{t}</p>)}
-                  </>
+                  </div>
                 );
-              })()}
+              })}
             </div>
           )}
 
