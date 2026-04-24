@@ -7,6 +7,18 @@ import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, li
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 const WIND_DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 
+const WIND_DIR_DEG = { N:0, NNE:22.5, NE:45, ENE:67.5, E:90, ESE:112.5, SE:135, SSE:157.5, S:180, SSW:202.5, SW:225, WSW:247.5, W:270, WNW:292.5, NW:315, NNW:337.5 };
+
+// Bearing (degrees) that water flows TOWARD during each tide phase per zone
+const ZONE_TIDE_BEARINGS = {
+  "lake-st-catherine":    { flood: 270, ebb: 90  }, // floods in from Borgne (W into lake), ebbs E back to Borgne
+  "lake-catherine-cuts":  { flood: 0,   ebb: 180 }, // floods N into interior marsh, ebbs S to open lake
+  "chef-pass":            { flood: 270, ebb: 90  }, // IWW/pass floods W toward Pontchartrain, ebbs E toward Gulf
+  "lake-borgne":          { flood: 315, ebb: 135 }, // Gulf water enters SE, floods NW; ebbs SE toward passes
+  "mrgo-interior":        { flood: 315, ebb: 135 }, // MRGO corridor: floods NW up channel, ebbs SE toward Gulf
+  "pearl-river":          { flood: 0,   ebb: 180 }, // tide floods N up river, river+ebb flows S to Gulf
+};
+
 const ZONES = [
   { id: "lake-st-catherine",   label: "Lake St. Catherine",           lat: 30.128471, lng: -89.732639 },
   { id: "lake-catherine-cuts", label: "Lake Catherine Cuts / Trenasses", lat: 30.100468, lng: -89.716792 },
@@ -88,6 +100,41 @@ function getMoonPhase(dateStr) {
   else if (age < 23.99) phase = "Last Quarter";
   else                  phase = "Waning Crescent";
   return { phase, illumination, age };
+}
+
+// ─── WIND-TIDE INTERACTION ────────────────────────────────────────────────────
+// Returns how much wind reinforces or opposes tidal current in a zone.
+// factor: -1 (fully opposing) to +1 (fully reinforcing), 0 = crossing/slack
+function windTideEffect(windDir, windSpeed, tideDir, zoneId) {
+  const zb = ZONE_TIDE_BEARINGS[zoneId];
+  if (!zb || !windDir || !windSpeed) return { label: "minimal", factor: 0, color: "#2a4060", note: "" };
+  if (tideDir === "slack") {
+    return { label: "wind-driven", factor: 0, color: "#4ab0ff",
+      note: `Slack tide — ${windDir} wind at ${windSpeed}mph is the primary current. Fish the bank the wind hits directly.` };
+  }
+  const currentBearing = tideDir === "falling" ? zb.ebb : zb.flood;
+  const windToDeg = (WIND_DIR_DEG[windDir] + 180) % 360;
+  const angleDiff = ((windToDeg - currentBearing + 360) % 360);
+  const cosAngle = Math.cos(angleDiff * Math.PI / 180);
+  // Scale effect by wind speed bracket
+  const speedFactor = windSpeed <= 5 ? 0.12 : windSpeed <= 10 ? 0.35 : windSpeed <= 15 ? 0.62 : 0.90;
+  const factor = cosAngle * speedFactor;
+
+  if (windSpeed <= 5) return { label: "minimal", factor, color: "#2a4060",
+    note: `Light wind (${windSpeed}mph) — minimal tide interaction. Tidal current drives the bite.` };
+
+  if (factor > 0.25) return { label: "reinforcing", factor, color: "#00c8a0",
+    note: windSpeed > 15
+      ? `${windDir} wind (${windSpeed}mph) reinforcing the ${tideDir} current — strong combined push. Bait is concentrated hard at pinch points and cut exits.`
+      : `${windDir} wind (${windSpeed}mph) aligned with the ${tideDir} current — boosted current and bait push. Better concentration at drain mouths and cut exits.` };
+
+  if (factor < -0.25) return { label: "opposing", factor, color: "#e05a2b",
+    note: windSpeed > 15
+      ? `${windDir} wind (${windSpeed}mph) opposing the ${tideDir} tide — current partially suppressed. Rough chop without productive current.`
+      : `${windDir} wind (${windSpeed}mph) opposing the ${tideDir} current — tide weakened. Less current through cuts; fish more spread out on structure rather than stacked at exits.` };
+
+  return { label: "crossing", factor, color: "#4ab0ff",
+    note: `${windDir} wind (${windSpeed}mph) crossing the tidal flow — current intact, wind stacking bait laterally on the windward bank alongside the tide.` };
 }
 
 // ─── ZONE SCORING ─────────────────────────────────────────────────────────────
@@ -401,7 +448,9 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       .sort((a, b) => b.score - a.score)
       .slice(0, 2);
 
-    return { startTime, endTime, tideDir, tideChange, windDir, windSpeed, strategy, primarySpecies, zoneTips, whereToFish, betterZones, avoid, caution };
+    const topZoneId = whereToFish[0]?.zoneId ?? zones[0] ?? null;
+    const windTide = topZoneId ? windTideEffect(windDir, windSpeed, tideDir, topZoneId) : null;
+    return { startTime, endTime, tideDir, tideChange, windDir, windSpeed, strategy, primarySpecies, zoneTips, whereToFish, betterZones, avoid, caution, windTide };
   });
 }
 
@@ -698,7 +747,7 @@ function buildCurve(pts) {
   return d;
 }
 
-function TideChart({ predictions, predictions2 = [], blendWeight = 0.5, label1 = "Station 1", label2 = "Station 2" }) {
+function TideChart({ predictions, predictions2 = [], blendWeight = 0.5, label1 = "Station 1", label2 = "Station 2", windForecast = [], primaryZoneId = null }) {
   if (!predictions.length) return null;
   const W = 400, H = 150, padL = 32, padR = 10, padT = 18, padB = 22;
   const cW = W - padL - padR, cH = H - padT - padB;
@@ -791,7 +840,43 @@ function TideChart({ predictions, predictions2 = [], blendWeight = 0.5, label1 =
         })}
       </svg>
 
-      <div style={{ display: "flex", gap: 14, marginTop: 2, flexWrap: "wrap" }}>
+      {/* WIND-TIDE INTERACTION STRIP */}
+      {windForecast.length > 0 && primaryZoneId && (() => {
+        const lPct = (padL / W * 100).toFixed(1);
+        const rPct = (padR / W * 100).toFixed(1);
+        const stripData = predictions.map((p, i) => {
+          const currH = blended[i];
+          const prevH = i > 0 ? blended[i - 1] : blended[i + 1];
+          const tDir = currH > prevH ? "rising" : currH < prevH ? "falling" : "slack";
+          const hr = parseInt(p.time.slice(-5).split(":")[0], 10);
+          const wind = windForecast.reduce((best, w) => {
+            const wHr = parseInt(w.time.split(":")[0], 10);
+            return Math.abs(wHr - hr) < Math.abs(parseInt(best.time.split(":")[0], 10) - hr) ? w : best;
+          }, windForecast[0]);
+          const effect = windTideEffect(wind.dir, wind.speed, tDir, primaryZoneId);
+          const bg = effect.label === "reinforcing" ? "rgba(0,200,160,0.65)"
+            : effect.label === "opposing"    ? "rgba(224,90,43,0.65)"
+            : effect.label === "crossing"    ? "rgba(74,176,255,0.5)"
+            : effect.label === "wind-driven" ? "rgba(74,176,255,0.35)"
+            : "rgba(30,48,72,0.5)";
+          return { bg, note: effect.note, label: effect.label };
+        });
+        const zoneLabel = ZONES.find(z => z.id === primaryZoneId)?.label ?? primaryZoneId;
+        return (
+          <div style={{ marginTop: 6, marginBottom: 2 }}>
+            <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.57rem", letterSpacing:1.5, textTransform:"uppercase", color:"#3a5a74", marginBottom:3 }}>
+              Wind × Tide — {zoneLabel}
+            </div>
+            <div style={{ display:"flex", marginLeft:`${lPct}%`, marginRight:`${rPct}%`, height:9, borderRadius:4, overflow:"hidden" }}>
+              {stripData.map((d, i) => (
+                <div key={i} title={d.note} style={{ flex:1, background:d.bg, cursor:"default" }} />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      <div style={{ display: "flex", gap: 14, marginTop: 6, flexWrap: "wrap" }}>
         {hasBlend ? (
           <>
             <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "0.68rem", color: "#5a7a94", display: "flex", alignItems: "center", gap: 5 }}>
@@ -810,6 +895,15 @@ function TideChart({ predictions, predictions2 = [], blendWeight = 0.5, label1 =
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, display: "inline-block" }} />{label}
             </span>
           ))
+        )}
+        {windForecast.length > 0 && primaryZoneId && (
+          <>
+            {[["rgba(0,200,160,0.65)","Reinforcing"],["rgba(224,90,43,0.65)","Opposing"],["rgba(74,176,255,0.5)","Crossing"]].map(([bg, lbl]) => (
+              <span key={lbl} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", display:"flex", alignItems:"center", gap:5 }}>
+                <span style={{ width:14, height:7, borderRadius:2, background:bg, display:"inline-block" }} />{lbl}
+              </span>
+            ))}
+          </>
         )}
       </div>
     </div>
@@ -897,7 +991,14 @@ function BlockCard({ block }) {
       {open && (
         <div className="bb">
           {/* LEAD PARAGRAPH — primary recommendation */}
-          {leadText && <p style={{ fontSize:"0.88rem", color:"#d0e4f0", lineHeight:1.75, marginBottom:14 }}>{leadText}</p>}
+          {leadText && <p style={{ fontSize:"0.88rem", color:"#d0e4f0", lineHeight:1.75, marginBottom: block.windTide && block.windTide.label !== "minimal" ? 8 : 14 }}>{leadText}</p>}
+
+          {/* WIND-TIDE INTERACTION NOTE */}
+          {block.windTide && block.windTide.label !== "minimal" && block.windTide.note && (
+            <p style={{ fontSize:"0.82rem", color: block.windTide.color, lineHeight:1.65, marginBottom:14, paddingLeft:10, borderLeft:`2px solid ${block.windTide.color}` }}>
+              {block.windTide.note}
+            </p>
+          )}
 
           {/* PRIMARY ZONE TIPS */}
           {primaryTips && (() => {
@@ -2081,6 +2182,8 @@ export default function FishingTool() {
                           blendWeight={blendWeight}
                           label1={TIDE_STATIONS.find(s=>s.id===tideStation)?.label ?? "Station 1"}
                           label2={TIDE_STATIONS.find(s=>s.id===tideStation2)?.label ?? "Station 2"}
+                          windForecast={windForecast}
+                          primaryZoneId={zones[0] ?? null}
                         />
                       </div>
                     </>
