@@ -11,6 +11,22 @@ const WIND_DIR_DEG = { N:0, NNE:22.5, NE:45, ENE:67.5, E:90, ESE:112.5, SE:135, 
 
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 
+// Accepts HH:MM, HHMM, H:MM — always returns "HH:MM" or null if unparseable
+function parseTimeInput(raw) {
+  const s = (raw || "").trim().replace(/\s/g, "");
+  const withColon = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (withColon) {
+    const h = parseInt(withColon[1], 10), m = parseInt(withColon[2], 10);
+    if (h < 24 && m < 60) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  }
+  const plain4 = s.match(/^(\d{2})(\d{2})$/);
+  if (plain4) {
+    const h = parseInt(plain4[1], 10), m = parseInt(plain4[2], 10);
+    if (h < 24 && m < 60) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  }
+  return null;
+}
+
 function fixRuleText(text) {
   if (!text) return "";
   let t = cap(text);
@@ -967,9 +983,13 @@ function TimeBlockForm({ block, index, onChange, onRemove }) {
     <div className="tbf">
       <div className="fr">
         <label>Start</label>
-        <input type="time" value={block.startTime} onChange={e => onChange(index, "startTime", e.target.value)} />
+        <input type="text" placeholder="HH:MM" value={block.startTime}
+          onChange={e => onChange(index, "startTime", e.target.value)}
+          onBlur={e => { const t = parseTimeInput(e.target.value); if (t) onChange(index, "startTime", t); }} />
         <label>End</label>
-        <input type="time" value={block.endTime} onChange={e => onChange(index, "endTime", e.target.value)} />
+        <input type="text" placeholder="HH:MM" value={block.endTime}
+          onChange={e => onChange(index, "endTime", e.target.value)}
+          onBlur={e => { const t = parseTimeInput(e.target.value); if (t) onChange(index, "endTime", t); }} />
       </div>
       <div className="fr">
         <label>Tide</label>
@@ -1956,11 +1976,13 @@ export default function FishingTool() {
                   </div>
                   <div>
                     <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Trip Start</div>
-                    <input type="time" value={tripStart} onChange={e => setTripStart(e.target.value)} />
+                    <input type="text" placeholder="HH:MM" value={tripStart} onChange={e => setTripStart(e.target.value)}
+                      onBlur={e => { const t = parseTimeInput(e.target.value); if (t) setTripStart(t); }} />
                   </div>
                   <div>
                     <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.62rem", color:"var(--mu)", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Trip End</div>
-                    <input type="time" value={tripEnd} onChange={e => setTripEnd(e.target.value)} />
+                    <input type="text" placeholder="HH:MM" value={tripEnd} onChange={e => setTripEnd(e.target.value)}
+                      onBlur={e => { const t = parseTimeInput(e.target.value); if (t) setTripEnd(t); }} />
                   </div>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
