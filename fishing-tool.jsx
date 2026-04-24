@@ -222,7 +222,7 @@ function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, hig
 
   } else if (zoneId === "lake-catherine-cuts") {
     // Best falling-tide zone in the system — current rips through tight throats
-    if (tideDir === "falling") s += 4; else if (tideDir === "rising") s += 2; else s -= 3;
+    if (tideDir === "falling") s += 5; else if (tideDir === "rising") s += 2; else s -= 3;
     if (roughWind) s -= 1;
     if (season === "fall") s += 2;
 
@@ -239,7 +239,7 @@ function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, hig
     if (eWind) s += 2;
     else if (sBadWind) s -= 1;
     if (roughWind) s -= 3;
-    if (highRiver) s += 2; // best salinity refuge when river is flooding
+    if (highRiver) s += 1; // salinity refuge when river is flooding, but conditions still drive primary pick
 
   } else if (zoneId === "mrgo-interior") {
     if (tideDir === "rising") s += 3; else if (tideDir === "falling") s += 2;
@@ -1523,6 +1523,8 @@ export default function FishingTool() {
   const fetchAll = async () => {
     setFetchLoading(true);
     setFetchStatus([]);
+    setTidePreds([]);
+    setTidePreds2([]);
     const status = [];
     const log = msg => { status.push(msg); setFetchStatus([...status]); };
 
@@ -1535,7 +1537,7 @@ export default function FishingTool() {
         try {
           log("Fetching tides…");
           const p1 = await fetchNOAATides(tideStation, tideDate);
-          setTidePreds(p1); setTidePreds2([]);
+          setTidePreds(p1);
           log("✓ Tides");
         } catch (e) { log("✗ Tides: " + (e.message || "failed")); }
       })(),
