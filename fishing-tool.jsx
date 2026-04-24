@@ -457,6 +457,8 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     const blockCond = { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, salinityPpt };
     const spotCond  = { tideDir, windwardBank, highPearlRiver };
 
+    const avoidZoneIds = new Set(activeRules.filter(r => r.flag === "avoid").flatMap(r => r.zones));
+
     const whereToFish = zones
       .map(zid => {
         const z = ZONES.find(x => x.id === zid);
@@ -464,6 +466,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
         return spot ? { zoneId: zid, zone: z?.label ?? zid, score: scoreZone(zid, blockCond), ...spot } : null;
       })
       .filter(Boolean)
+      .filter(w => !avoidZoneIds.has(w.zoneId))
       .sort((a, b) => b.score - a.score);
 
     const bestScore = whereToFish[0]?.score ?? 0;
