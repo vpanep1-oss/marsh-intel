@@ -236,7 +236,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     const caution = activeRules.filter(r => r.flag === "caution").map(r => r.reason);
     const hasWind = !!windDir;
     const isStrongWind = hasWind && windSpeed >= 10;
-    const isModerateWind = hasWind && windSpeed > 7;
+    const isModerateWind = hasWind && windSpeed >= 7;
     const isLightWind = hasWind && windSpeed <= 7;
     const windFromSouth = hasWind && ["S","SSE","SSW"].includes(windDir);
     const windFromNorth = hasWind && ["N","NNE","NNW","NE","NW"].includes(windDir);
