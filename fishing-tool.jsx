@@ -2325,12 +2325,11 @@ export default function FishingTool() {
               {riverFt !== null && riverFt > 12 && (
                 <div className="card" style={{ borderColor:"var(--wn)", borderLeft:"3px solid var(--wn)", marginBottom:14 }}>
                   <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"var(--wn)", marginBottom:4, textTransform:"uppercase", letterSpacing:1 }}>⚠ River Level Alert</div>
-                  <div style={{ fontSize:"0.84rem" }}>Mississippi R. at {riverFt.toFixed(1)}ft — elevated freshwater. Trout likely displaced toward Lake Borgne. Prioritize redfish.</div>
+                  <div style={{ fontSize:"0.84rem" }}>Mississippi R. at {riverFt.toFixed(1)}ft — elevated freshwater pushing through the system. Trout seeking cleaner, saltier water — prioritize redfish, black drum, and bass.</div>
                 </div>
               )}
               {waterQuality.length > 0 && waterQuality.some(s => s.salNow !== null && s.salNow < 10) && (() => {
                 const lowSal = waterQuality.some(s => s.salNow !== null && s.salNow < 5);
-                const hasBorgne = zones.includes("lake-borgne");
                 return (
                   <div className="card" style={{ borderColor:"#c8a000", borderLeft:"3px solid #c8a000", marginBottom:14 }}>
                     <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"#c8a000", marginBottom:6, textTransform:"uppercase", letterSpacing:1 }}>⚡ Salinity Alert</div>
@@ -2342,9 +2341,7 @@ export default function FishingTool() {
                     ))}
                     {lowSal && (
                       <div style={{ fontSize:"0.82rem", color:"#c8a000", marginTop:8, paddingTop:8, borderTop:"1px solid var(--bd)" }}>
-                        {hasBorgne
-                          ? "Trout displaced to open Lake Borgne — target shell reef edges in cleaner water on the east end."
-                          : "Trout displaced to open Lake Borgne — not in your zones. Add Lake Borgne to target them, or focus on redfish, black drum, and bass."}
+                        Trout pushed to the north shoreline of Lake Borgne and the Rigolets channel where salinity stays higher — not accessible from your zones. Focus on redfish and black drum on shell and grass edges.
                       </div>
                     )}
                   </div>
@@ -2391,7 +2388,7 @@ export default function FishingTool() {
                   ? "Rising tide is pushing bait into the marsh — follow it shallower and work grass edges."
                   : "Slack water mid-day — use that window to run and scout structure.";
                 const riverNote = riverFt !== null && riverFt > 12
-                  ? ` River running high at ${riverFt.toFixed(1)}ft — salinity suppressed, trout pushed toward Lake Borgne.`
+                  ? ` River running high at ${riverFt.toFixed(1)}ft — salinity suppressed, trout pushed to cleaner open water.`
                   : "";
                 const avoidNote = anyAvoid ? " Rule triggered for one or more blocks — check the red ⚠ flags above before committing to those spots." : "";
                 const sentences = [
