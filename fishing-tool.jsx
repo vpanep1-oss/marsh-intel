@@ -203,18 +203,19 @@ function windTideEffect(windDir, windSpeed, tideDir, zoneId, { windwardBank = ""
 }
 
 // ─── ZONE SCORING ─────────────────────────────────────────────────────────────
-function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, salinityPpt }) {
+function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, rigoletsSal }) {
   const sBadWind  = ["S","SSW","SSE"].includes(windDir) && windSpeed >= 10;
   const nWind     = ["N","NNW","NNE","NW","NE"].includes(windDir);
   const roughWind = windSpeed >= 15;
   const modWind   = windSpeed >= 8 && windSpeed < 15;
+  const lowRigoletsSal = rigoletsSal !== null && rigoletsSal !== undefined && rigoletsSal < 5;
   let s = 5;
 
   if (zoneId === "lake-st-catherine") {
     if (tideDir === "falling") s += 3; else if (tideDir === "rising") s += 2; else s -= 1;
     if (roughWind) s -= 4; else if (modWind) s += 1;
     if (season === "fall" || season === "spring") s += 1;
-    if (highRiver) s -= 1;
+    if (lowRigoletsSal) s -= 1;
 
   } else if (zoneId === "lake-catherine-cuts") {
     // Best falling-tide zone in the system — current rips through tight throats
@@ -286,7 +287,7 @@ function matchRule(rule, { windDir, windSpeed, tideDir }) {
 }
 
 // ─── FISHING LOGIC ENGINE ─────────────────────────────────────────────────────
-function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverFt, moonPhase, pressureTrend, waterTempF, tripDate) {
+function generatePlan(blocks, zones, allRules, riverFt, rigoletsSal, pearlRiverFt, moonPhase, pressureTrend, waterTempF, tripDate) {
   const month = tripDate ? new Date(tripDate + "T12:00:00").getMonth() + 1 : null;
   const season = month
     ? month <= 2 || month === 12 ? "winter"
@@ -312,11 +313,12 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     const windFromWest  = hasWind && ["W","WNW","WSW","SW","NW"].includes(windDir);
     const highRiver     = riverFt !== null && riverFt !== undefined && riverFt > 12;
     const highPearlRiver = pearlRiverFt !== null && pearlRiverFt !== undefined && pearlRiverFt > 10;
-    const lowSalinity = salinityPpt !== null && salinityPpt !== undefined && salinityPpt < 5;
-    // Pearl River is a separate watershed — Mississippi/Carrollton gauge doesn't affect it
-    const nonPearlZones = zones.filter(z => z !== "pearl-river");
-    const highRiverAffects = highRiver && nonPearlZones.length > 0;
-    const troutAvailable = !highRiverAffects && !lowSalinity;
+    const lowRigoletsSal = rigoletsSal !== null && rigoletsSal !== undefined && rigoletsSal < 5;
+    // MRGO connects directly to Mississippi at IHNC/Lower 9th Ward — Carrollton gauge drives freshwater into mrgo-interior and chef-pass
+    const highRiverAffects = highRiver && (zones.includes("mrgo-interior") || zones.includes("chef-pass"));
+    // Eastern corridor freshwater via Rigolets/Pontchartrain route — affects lake-st-catherine and lake-catherine-cuts
+    const easternFreshwater = lowRigoletsSal && (zones.includes("lake-st-catherine") || zones.includes("lake-catherine-cuts"));
+    const troutAvailable = !highRiverAffects && !easternFreshwater;
     // Calm enough to work exposed open-water edges (Borgne shoreline, MRGO channel, river mouth)
     const calmedge = windSpeed < 6;
 
@@ -360,10 +362,12 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       }
     }
 
-    if (highRiverAffects || lowSalinity) {
-      const reason = highRiverAffects
-        ? `Mississippi River at ${riverFt.toFixed(1)}ft — freshwater suppressing salinity across the system.`
-        : `Salinity at ${salinityPpt.toFixed(1)} ppt — below trout threshold.`;
+    if (highRiverAffects || easternFreshwater) {
+      const reason = highRiverAffects && easternFreshwater
+        ? `Mississippi R. at ${riverFt.toFixed(1)}ft pushing through MRGO corridor; Rigolets at ${rigoletsSal.toFixed(1)} ppt — freshwater impacting multiple zones.`
+        : highRiverAffects
+        ? `Mississippi R. at ${riverFt.toFixed(1)}ft — freshwater pushing through MRGO into Chef Pass and interior marsh.`
+        : `Rigolets at ${rigoletsSal.toFixed(1)} ppt — freshwater suppressing salinity in the eastern corridor.`;
       strategy.push(`⚠ ${reason} Trout seeking deeper, saltier water — not a realistic target today. Focus on redfish, black drum, and bass.`);
     }
 
@@ -391,7 +395,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       }
       primarySpecies = [
         "Redfish — grass edges and points adjacent to drains",
-        highRiverAffects ? "Largemouth Bass — grass lines and wood structure in low-salinity backwaters" : "Largemouth Bass — shaded structure, points, and grass edges near cuts",
+        (highRiverAffects || easternFreshwater) ? "Largemouth Bass — grass lines and wood structure in low-salinity backwaters" : "Largemouth Bass — shaded structure, points, and grass edges near cuts",
         ...(troutAvailable ? ["Speckled Trout — cut mouths, current rips, downcurrent of points"] : []),
         "Flounder — flat just downcurrent of cut exits, ambushing bait pushed out by the tide",
         "Black Drum — shell reef edges and hard bottom near drain mouths",
@@ -413,7 +417,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
       }
       primarySpecies = [
         "Redfish — tailing on shallow flats, grass edges, pockets",
-        highRiverAffects ? "Largemouth Bass — moving shallower with the tide in freshwater-pushed areas" : "Largemouth Bass — grass pockets, points, and upcurrent structure edges",
+        (highRiverAffects || easternFreshwater) ? "Largemouth Bass — moving shallower with the tide in freshwater-pushed areas" : "Largemouth Bass — grass pockets, points, and upcurrent structure edges",
         ...(troutAvailable ? ["Speckled Trout — wind-blown bait lines, shell reef edges, points"] : []),
         ...(tideChange >= 0.15 ? ["Flounder — staging near structure edges waiting for the drop"] : []),
         "Black Drum — shell reefs and oyster pads as water covers them on the rise",
@@ -508,7 +512,7 @@ function generatePlan(blocks, zones, allRules, riverFt, salinityPpt, pearlRiverF
     const zoneTips = Object.entries(zoneMap).map(([label, tips]) => ({ label, tips }));
 
     // ── Where to fish + cross-zone recommendations ──────────────────────────
-    const blockCond = { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, salinityPpt };
+    const blockCond = { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, rigoletsSal };
     const spotCond  = { tideDir, windwardBank, highPearlRiver };
 
     const avoidZoneIds = new Set(activeRules.filter(r => r.flag === "avoid").flatMap(r => r.zones));
@@ -1694,27 +1698,26 @@ export default function FishingTool() {
   };
 
   const buildPlanArgs = () => {
-    const salReadings = waterQuality.filter(s => s.salNow !== null).map(s => s.salNow);
-    const minSalinity = salReadings.length ? Math.min(...salReadings) : null;
+    const rigoletsSal = waterQuality.find(s => s.id === "301001089442600")?.salNow ?? null;
     const moon = tideDate ? getMoonPhase(tideDate) : null;
     const pressures = windForecast.map(w => w.pressure).filter(Boolean);
     const pressureTrend = pressures.length >= 6
       ? (() => { const e = pressures.slice(0,3).reduce((a,b)=>a+b,0)/3; const l = pressures.slice(-3).reduce((a,b)=>a+b,0)/3; return l - e > 1 ? "rising" : l - e < -1 ? "falling" : "steady"; })()
       : "steady";
-    return { minSalinity, moon, pressureTrend };
+    return { rigoletsSal, moon, pressureTrend };
   };
 
   const generate = () => {
-    const { minSalinity, moon, pressureTrend } = buildPlanArgs();
-    setPlan(generatePlan(blocks, zones, allRules, riverFt, minSalinity, pearlRiverFt, moon, pressureTrend, waterTempF, tideDate));
+    const { rigoletsSal, moon, pressureTrend } = buildPlanArgs();
+    setPlan(generatePlan(blocks, zones, allRules, riverFt, rigoletsSal, pearlRiverFt, moon, pressureTrend, waterTempF, tideDate));
     setTab("plan");
   };
 
   const switchToZone = (zoneId) => {
     const newZones = zones.includes(zoneId) ? zones : [...zones, zoneId];
     setZones(newZones);
-    const { minSalinity, moon, pressureTrend } = buildPlanArgs();
-    setPlan(generatePlan(blocks, newZones, allRules, riverFt, minSalinity, pearlRiverFt, moon, pressureTrend, waterTempF, tideDate));
+    const { rigoletsSal, moon, pressureTrend } = buildPlanArgs();
+    setPlan(generatePlan(blocks, newZones, allRules, riverFt, rigoletsSal, pearlRiverFt, moon, pressureTrend, waterTempF, tideDate));
   };
 
   const postToNetlify = (fields) =>
