@@ -1512,8 +1512,9 @@ export default function FishingTool() {
     const log = msg => { status.push(msg); setFetchStatus([...status]); };
 
     const validCoords = coords.filter(c => !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lng)));
-    const lat = (validCoords.reduce((s,c) => s + parseFloat(c.lat), 0) / validCoords.length).toFixed(4);
-    const lng = (validCoords.reduce((s,c) => s + parseFloat(c.lng), 0) / validCoords.length).toFixed(4);
+    const hasCoords = validCoords.length > 0;
+    const lat = hasCoords ? (validCoords.reduce((s,c) => s + parseFloat(c.lat), 0) / validCoords.length).toFixed(4) : null;
+    const lng = hasCoords ? (validCoords.reduce((s,c) => s + parseFloat(c.lng), 0) / validCoords.length).toFixed(4) : null;
 
     await Promise.allSettled([
       (async () => {
@@ -1534,6 +1535,7 @@ export default function FishingTool() {
         } catch (e) { log("✗ Tides (2nd station): " + (e.message || "failed")); }
       })(),
       (async () => {
+        if (!hasCoords) { log("✗ Wind: select 4 pts on map for wind forecast"); return; }
         try {
           log("Fetching wind…");
           const wf = await fetchWindForecast(lat, lng, tideDate, windModel);
