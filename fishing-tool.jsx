@@ -2334,7 +2334,6 @@ export default function FishingTool() {
               {(() => {
                 const relevantWQ = waterQuality.filter(s => {
                   if (s.id === "301001089442600") return zones.some(z => z === "lake-st-catherine" || z === "lake-catherine-cuts");
-                  if (s.id === "073745253")       return zones.some(z => z === "mrgo-interior" || z === "chef-pass");
                   return false;
                 }).filter(s => s.salNow !== null);
                 if (!relevantWQ.some(s => s.salNow < 10)) return null;
