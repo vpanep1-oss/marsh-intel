@@ -2336,22 +2336,29 @@ export default function FishingTool() {
                   if (s.id === "301001089442600") return zones.some(z => z === "lake-st-catherine" || z === "lake-catherine-cuts");
                   return false;
                 }).filter(s => s.salNow !== null);
-                if (!relevantWQ.some(s => s.salNow < 10)) return null;
-                const lowSal = relevantWQ.some(s => s.salNow < 5);
+                if (!relevantWQ.length) return null;
+                const minSal = Math.min(...relevantWQ.map(s => s.salNow));
+                const salFavorable = minSal >= 10;
+                const salLow = minSal < 5;
+                const borderColor = salFavorable ? "#00c8a0" : salLow ? "#e05a2b" : "#c8a000";
+                const summaryText = salFavorable
+                  ? "Salinity in the productive range — favorable conditions for trout and reds."
+                  : salLow
+                  ? "Low salinity in your selected zones — trout pushed to saltier open water. Focus on redfish and black drum on shell and grass edges."
+                  : "Salinity below trout threshold — trout unlikely in these zones. Target reds and drum on structure.";
+                const summaryColor = salFavorable ? "#00c8a0" : "#c8a000";
                 return (
-                  <div className="card" style={{ borderColor:"#c8a000", borderLeft:"3px solid #c8a000", marginBottom:14 }}>
-                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"#c8a000", marginBottom:6, textTransform:"uppercase", letterSpacing:1 }}>⚡ Salinity Alert</div>
+                  <div className="card" style={{ borderColor, borderLeft:`3px solid ${borderColor}`, marginBottom:14 }}>
+                    <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:borderColor, marginBottom:6, textTransform:"uppercase", letterSpacing:1 }}>⚡ Salinity</div>
                     {relevantWQ.map(s => (
                       <div key={s.id} style={{ fontSize:"0.84rem", marginBottom:3 }}>
                         <span style={{ color: salinityLabel(s.salNow).color }}>{s.salNow.toFixed(1)} ppt</span>
                         <span style={{ color:"var(--mu)" }}> at {s.label} — {salinityLabel(s.salNow).text}</span>
                       </div>
                     ))}
-                    {lowSal && (
-                      <div style={{ fontSize:"0.82rem", color:"#c8a000", marginTop:8, paddingTop:8, borderTop:"1px solid var(--bd)" }}>
-                        Low salinity in your selected zones — trout pushed to saltier open water not accessible from here. Focus on redfish and black drum on shell and grass edges.
-                      </div>
-                    )}
+                    <div style={{ fontSize:"0.82rem", color:summaryColor, marginTop:8, paddingTop:8, borderTop:"1px solid var(--bd)" }}>
+                      {summaryText}
+                    </div>
                   </div>
                 );
               })()}
