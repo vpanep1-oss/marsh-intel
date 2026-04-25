@@ -2325,18 +2325,24 @@ export default function FishingTool() {
                 <button className="btn btn-secondary btn-sm" onClick={saveTrip}>Save Trip</button>
                 <button className="btn btn-warn btn-sm" onClick={() => setShowFeedback(true)}>Post-Trip Debrief</button>
               </div>
-              {riverFt !== null && riverFt > 12 && (
+              {riverFt !== null && riverFt > 12 && zones.some(z => z === "mrgo-interior" || z === "chef-pass") && (
                 <div className="card" style={{ borderColor:"var(--wn)", borderLeft:"3px solid var(--wn)", marginBottom:14 }}>
                   <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"var(--wn)", marginBottom:4, textTransform:"uppercase", letterSpacing:1 }}>⚠ River Level Alert</div>
-                  <div style={{ fontSize:"0.84rem" }}>Mississippi R. at {riverFt.toFixed(1)}ft — elevated freshwater pushing through the system. Trout seeking cleaner, saltier water — prioritize redfish, black drum, and bass.</div>
+                  <div style={{ fontSize:"0.84rem" }}>Mississippi R. at {riverFt.toFixed(1)}ft — freshwater pushing through MRGO into Chef Pass and interior marsh. Trout seeking cleaner, saltier water — prioritize redfish, black drum, and bass.</div>
                 </div>
               )}
-              {waterQuality.length > 0 && waterQuality.some(s => s.salNow !== null && s.salNow < 10) && (() => {
-                const lowSal = waterQuality.some(s => s.salNow !== null && s.salNow < 5);
+              {(() => {
+                const relevantWQ = waterQuality.filter(s => {
+                  if (s.id === "301001089442600") return zones.some(z => z === "lake-st-catherine" || z === "lake-catherine-cuts");
+                  if (s.id === "073745253")       return zones.some(z => z === "mrgo-interior" || z === "chef-pass");
+                  return false;
+                }).filter(s => s.salNow !== null);
+                if (!relevantWQ.some(s => s.salNow < 10)) return null;
+                const lowSal = relevantWQ.some(s => s.salNow < 5);
                 return (
                   <div className="card" style={{ borderColor:"#c8a000", borderLeft:"3px solid #c8a000", marginBottom:14 }}>
                     <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"#c8a000", marginBottom:6, textTransform:"uppercase", letterSpacing:1 }}>⚡ Salinity Alert</div>
-                    {waterQuality.filter(s => s.salNow !== null).map(s => (
+                    {relevantWQ.map(s => (
                       <div key={s.id} style={{ fontSize:"0.84rem", marginBottom:3 }}>
                         <span style={{ color: salinityLabel(s.salNow).color }}>{s.salNow.toFixed(1)} ppt</span>
                         <span style={{ color:"var(--mu)" }}> at {s.label} — {salinityLabel(s.salNow).text}</span>
@@ -2344,7 +2350,7 @@ export default function FishingTool() {
                     ))}
                     {lowSal && (
                       <div style={{ fontSize:"0.82rem", color:"#c8a000", marginTop:8, paddingTop:8, borderTop:"1px solid var(--bd)" }}>
-                        Trout pushed to the north shoreline of Lake Borgne and the Rigolets channel where salinity stays higher — not accessible from your zones. Focus on redfish and black drum on shell and grass edges.
+                        Low salinity in your selected zones — trout pushed to saltier open water not accessible from here. Focus on redfish and black drum on shell and grass edges.
                       </div>
                     )}
                   </div>
