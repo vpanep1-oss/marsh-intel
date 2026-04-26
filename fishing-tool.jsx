@@ -305,7 +305,7 @@ function generatePlan(blocks, zones, allRules, riverFt, rigoletsSal, pearlRiverF
     : null;
 
   return blocks.map((block, blockIndex) => {
-    const { startTime, endTime, tideDir, tideChange, windDir, windSpeed } = block;
+    const { startTime, endTime, tideDir, tideChange, tideHeight, windDir, windSpeed } = block;
     const activeRules = allRules.filter(r =>
       zones.some(z => r.zones.includes(z)) && matchRule(r, { windDir, windSpeed, tideDir })
     );
@@ -368,15 +368,6 @@ function generatePlan(blocks, zones, allRules, riverFt, rigoletsSal, pearlRiverF
         strategy.push("Fall prime time — best bite of the year for this fishery. Trout aggressive on grass edges and shell reefs, responding to topwater and fast-moving lures. Reds schooling in large pods on open flats — look for nervous water and rolling fish. Bass and flounder also very active.");
         if (month === 10 || month === 11) strategy.push("Oct–Nov: flounder staging at pass mouths and cut exits ahead of their Gulf migration — concentrate at pinch points with current. Don't miss this window.");
       }
-    }
-
-    if (highRiverAffects || easternFreshwater) {
-      const reason = highRiverAffects && easternFreshwater
-        ? `Mississippi R. at ${riverFt.toFixed(1)}ft pushing through MRGO corridor; Rigolets at ${rigoletsSal.toFixed(1)} ppt — freshwater impacting multiple zones.`
-        : highRiverAffects
-        ? `Mississippi R. at ${riverFt.toFixed(1)}ft — freshwater pushing through MRGO into Chef Pass and interior marsh.`
-        : `Rigolets at ${rigoletsSal.toFixed(1)} ppt — freshwater suppressing salinity in the eastern corridor.`;
-      strategy.push(`⚠ ${reason} Trout seeking deeper, saltier water — not a realistic target today. Focus on redfish, black drum, and bass.`);
     }
 
     if (tideDir === "slack") {
@@ -489,16 +480,15 @@ function generatePlan(blocks, zones, allRules, riverFt, rigoletsSal, pearlRiverF
     if (zones.includes("mrgo-interior")) {
       if (tideDir === "falling") {
         zt("MRGO Interior Marsh", `Interior pond edges and drain mouths as water drops.${isModerateWind ? ` Fish the ${windwardBank} of each pond where wind and tide push bait to the same corner.` : ""} Gardner Island tide runs ~4hrs ahead of Shell Beach — verify your actual tide phase.`);
-        if (calmedge) zt("MRGO Interior Marsh", `Calm enough to work the MRGO channel edge — rocky channel margins hold reds and drum in slightly deeper, saltier water than the interior ponds. Fish the ${tideDir === "falling" ? "downcurrent" : "upcurrent"} side of any structure along the channel wall.`);
+        if (calmedge) zt("MRGO Interior Marsh", `Calm enough to work the MRGO channel edge — downcurrent rocky margins hold reds and drum in slightly deeper water as the tide drains.`);
       } else if (tideDir === "rising") {
-        zt("MRGO Interior Marsh", `Shallow pond edges and grass lines — tailing reds and black drum rooting on shell as water fills in.${isModerateWind ? ` ${cap(windwardBank)} of each pond gets the most bait push.` : ""}`);
+        zt("MRGO Interior Marsh", `Shallow pond edges and grass lines — tailing reds and drum rooting on shell as water fills in.${isModerateWind ? ` ${cap(windwardBank)} of each pond gets the most bait push.` : ""}`);
         if (calmedge) zt("MRGO Interior Marsh", `Calm enough for the MRGO channel edge — fish the upcurrent rocky margins as water rises. Cleaner and slightly saltier than the interior; trout possible along the channel wall on calm days.`);
       } else if (tideDir === "slack" && isModerateWind) {
-        zt("MRGO Interior Marsh", `Interior ponds are protected from wind. Fish the ${windwardBank} of each pond — ${windDir} wind is the only current and bait is stacking on that bank. ${cap(leewardBank)} is dead.`);
+        zt("MRGO Interior Marsh", `Interior ponds protected from wind. Fish the ${windwardBank} of each pond — ${windDir} wind is the only current and bait is stacking on that bank. ${cap(leewardBank)} is dead.`);
       } else {
         zt("MRGO Interior Marsh", "Slack with no wind — use this window to run to new ponds and scout the MRGO channel edge with the depth finder.");
       }
-      if (highRiver) zt("MRGO Interior Marsh", "High river pushing freshwater into interior ponds — fish the MRGO channel itself rather than the shallow ponds; the channel holds slightly cleaner water and concentrates fish pushed off the flats.");
       if (season === "winter") zt("MRGO Interior Marsh", "Winter: interior ponds cold and slow. Look for dark mud on south-facing pond edges absorbing sun — reds stack there on calm sunny days.");
       if (season === "spring") zt("MRGO Interior Marsh", "Spring: reds in every pothole and pond edge as water warms. Bass on structure edges. Best time to explore new ponds.");
       if (season === "summer") zt("MRGO Interior Marsh", "Summer: interior ponds superheat — get in and out before 9 AM. The MRGO channel itself stays cooler and holds fish through mid-morning.");
@@ -548,7 +538,7 @@ function generatePlan(blocks, zones, allRules, riverFt, rigoletsSal, pearlRiverF
 
     const topZoneId = whereToFish[0]?.zoneId ?? zones[0] ?? null;
     const windTide = topZoneId ? windTideEffect(windDir, windSpeed, tideDir, topZoneId, { windwardBank, leewardBank }) : null;
-    return { startTime, endTime, tideDir, tideChange, windDir, windSpeed, strategy, primarySpecies, zoneTips, whereToFish, betterZones, avoid, caution, windTide };
+    return { startTime, endTime, tideDir, tideChange, tideHeight, windDir, windSpeed, strategy, primarySpecies, zoneTips, whereToFish, betterZones, avoid, caution, windTide };
   });
 }
 
@@ -1135,6 +1125,17 @@ function BlockCard({ block, onSwitchZone }) {
             <span className={`badge tb-${block.tideDir}`}>{block.tideDir === "falling" ? "↓" : block.tideDir === "rising" ? "↑" : "—"} {block.tideDir}</span>
             {block.windDir && <span className="badge wb">{block.windDir} {block.windSpeed}mph</span>}
             {block.tideChange > 0 && <span className="badge" style={{ background:"rgba(255,255,255,0.04)", color:"#5a7a94" }}>Δ{block.tideChange}ft</span>}
+            {block.tideHeight != null && (() => {
+              const wtFactor = block.windTide?.factor ?? 0;
+              const effHt = Math.max(0, block.tideHeight + wtFactor * Math.min(block.windSpeed ?? 0, 20) * 0.015);
+              const wtColor = block.windTide?.color ?? "#5a7a94";
+              const hasAdj = Math.abs(wtFactor) > 0.2 && (block.windSpeed ?? 0) >= 5;
+              return (
+                <span className="badge" style={{ background:"rgba(74,176,255,0.08)", color: hasAdj ? wtColor : "#4ab0ff", borderColor:"rgba(74,176,255,0.2)" }}>
+                  ~{effHt.toFixed(1)}ft{hasAdj ? " w·t" : ""}
+                </span>
+              );
+            })()}
             {hasAvoid && <span className="badge" style={{ background:"rgba(224,90,43,0.15)", color:"#e05a2b" }}>⚠ Rule Triggered</span>}
             {hasZoneWarning && !hasAvoid && <span className="badge" style={{ background:"rgba(224,90,43,0.15)", color:"#e05a2b" }}>⚠ Zone Warning</span>}
             {hasCaution && !hasAvoid && !hasZoneWarning && <span className="badge" style={{ background:"rgba(200,160,0,0.12)", color:"#c8a000" }}>⚡ Caution</span>}
@@ -2377,7 +2378,7 @@ export default function FishingTool() {
               {riverFt !== null && riverFt > 12 && zones.some(z => z === "mrgo-interior" || z === "chef-pass") && (
                 <div className="card" style={{ borderColor:"var(--wn)", borderLeft:"3px solid var(--wn)", marginBottom:14 }}>
                   <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"var(--wn)", marginBottom:4, textTransform:"uppercase", letterSpacing:1 }}>⚠ River Level Alert</div>
-                  <div style={{ fontSize:"0.84rem" }}>Mississippi R. at {riverFt.toFixed(1)}ft — freshwater pushing through MRGO into Chef Pass and interior marsh. Trout seeking cleaner, saltier water — prioritize redfish, black drum, and bass.</div>
+                  <div style={{ fontSize:"0.84rem" }}>Mississippi R. at {riverFt.toFixed(1)}ft — freshwater pushing through MRGO into Chef Pass and interior marsh. Trout pushed to the upcurrent rocky margins of the MRGO channel where salinity stays higher — prioritize redfish, black drum, and bass in the interior ponds.</div>
                 </div>
               )}
               {(() => {
@@ -2393,7 +2394,7 @@ export default function FishingTool() {
                 const summaryText = salFavorable
                   ? "Salinity in the productive range — favorable conditions for trout and reds."
                   : salLow
-                  ? "Low salinity in your selected zones — trout pushed to saltier open water. Focus on redfish and black drum on shell and grass edges."
+                  ? "Trout pushed toward the Rigolets channel where salinity stays higher — prioritize redfish and black drum on shell and grass edges."
                   : "Salinity below trout threshold — trout unlikely in these zones. Target reds and drum on structure.";
                 const summaryColor = salFavorable ? "#00c8a0" : "#c8a000";
                 return (
