@@ -2378,7 +2378,7 @@ export default function FishingTool() {
               {riverFt !== null && riverFt > 12 && zones.some(z => z === "mrgo-interior" || z === "chef-pass") && (
                 <div className="card" style={{ borderColor:"var(--wn)", borderLeft:"3px solid var(--wn)", marginBottom:14 }}>
                   <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.68rem", color:"var(--wn)", marginBottom:4, textTransform:"uppercase", letterSpacing:1 }}>⚠ River Level Alert</div>
-                  <div style={{ fontSize:"0.84rem" }}>Mississippi R. at {riverFt.toFixed(1)}ft — freshwater pushing through MRGO into Chef Pass and interior marsh. Trout pushed to the upcurrent rocky margins of the MRGO channel where salinity stays higher — prioritize redfish, black drum, and bass in the interior ponds.</div>
+                  <div style={{ fontSize:"0.84rem" }}>Mississippi R. at {riverFt.toFixed(1)}ft — freshwater pushing through MRGO into Chef Pass and interior marsh. Prioritize redfish, black drum, bass, and flounder.</div>
                 </div>
               )}
               {(() => {
