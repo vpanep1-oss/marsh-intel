@@ -236,7 +236,6 @@ function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, hig
     // Sheltered ponds — rough wind is an advantage, not a penalty
     if (roughWind) s += 2; else if (modWind) s += 1;
     if (season === "fall") s += 2; else if (season === "spring") s += 1; else if (season === "summer") s -= 1;
-    if (highRiver) s -= 2;
 
   } else if (zoneId === "pearl-river") {
     if (highPearlRiver) s += 2;
