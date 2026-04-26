@@ -13,18 +13,27 @@ const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 
 // Accepts HH:MM, HHMM, HMM — always returns "HH:MM" (24-hr) or null
 function parseTimeInput(raw) {
-  const s = (raw || "").trim().replace(/\s/g, "");
-  const withColon = s.match(/^(\d{1,2}):(\d{2})$/);
+  const s = (raw || "").trim();
+  const ampm = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i);
+  if (ampm) {
+    let h = parseInt(ampm[1], 10), m = parseInt(ampm[2] || "0", 10);
+    const period = ampm[3].toLowerCase();
+    if (period === "am") { if (h === 12) h = 0; }
+    else { if (h !== 12) h += 12; }
+    if (h < 24 && m < 60) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  }
+  const clean = s.replace(/\s/g, "");
+  const withColon = clean.match(/^(\d{1,2}):(\d{2})$/);
   if (withColon) {
     const h = parseInt(withColon[1], 10), m = parseInt(withColon[2], 10);
     if (h < 24 && m < 60) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
   }
-  const plain4 = s.match(/^(\d{2})(\d{2})$/);
+  const plain4 = clean.match(/^(\d{2})(\d{2})$/);
   if (plain4) {
     const h = parseInt(plain4[1], 10), m = parseInt(plain4[2], 10);
     if (h < 24 && m < 60) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
   }
-  const plain3 = s.match(/^(\d)(\d{2})$/);
+  const plain3 = clean.match(/^(\d)(\d{2})$/);
   if (plain3) {
     const h = parseInt(plain3[1], 10), m = parseInt(plain3[2], 10);
     if (h < 24 && m < 60) return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
@@ -41,7 +50,7 @@ function formatTime12(hhmm) {
   return `${h12}:${String(m).padStart(2,"0")} ${period}`;
 }
 
-function TimeInput({ value, onChange, placeholder = "HH:MM", style }) {
+function TimeInput({ value, onChange, placeholder = "e.g. 6:30am", style }) {
   const [focused, setFocused] = useState(false);
   return (
     <input
