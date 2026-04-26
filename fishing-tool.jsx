@@ -1148,7 +1148,7 @@ function BlockCard({ block, onSwitchZone }) {
           {/* LEAD PARAGRAPH — primary recommendation */}
           {leadText && (
             <div style={{ marginBottom: block.windTide && block.windTide.label !== "minimal" ? 8 : 14 }}>
-              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.58rem", letterSpacing:2, textTransform:"uppercase", color:"#d0e4f0", marginBottom:8 }}>▸ Top Pick</div>
+              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.58rem", letterSpacing:2, textTransform:"uppercase", color:"#c8a000", fontWeight:700, marginBottom:8 }}>🎯 Top Pick</div>
               <p style={{ fontSize:"0.88rem", color:"#d0e4f0", lineHeight:1.75, marginBottom:0 }}>{leadText}</p>
             </div>
           )}
