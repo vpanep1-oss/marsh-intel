@@ -1159,8 +1159,10 @@ function BlockCard({ block, onSwitchZone }) {
           {primaryTips && (() => {
             const normal = primaryTips.tips.filter(t => !t.includes("⚠"));
             const warns  = primaryTips.tips.filter(t => t.includes("⚠"));
+            if (!normal.length && !warns.length) return null;
             return (
               <div style={{ marginBottom:14 }}>
+                <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.58rem", letterSpacing:2, textTransform:"uppercase", color:"#00c8a0", marginBottom:8 }}>▸ Where to Fish</div>
                 {normal.map((t, j) => <p key={j} style={{ fontSize:"0.84rem", color:"#d0e4f0", lineHeight:1.65, marginBottom: j < normal.length - 1 || warns.length ? 6 : 0 }}>{t}</p>)}
                 {warns.map((t, j) => <p key={j} style={{ fontSize:"0.84rem", color:"#f08070", lineHeight:1.65, marginBottom:0 }}>{t}</p>)}
               </div>
@@ -1170,6 +1172,7 @@ function BlockCard({ block, onSwitchZone }) {
           {/* REMAINING KEY STRATEGY LINES */}
           {strategyLines.length > 1 && (
             <div style={{ marginBottom:14 }}>
+              <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.58rem", letterSpacing:2, textTransform:"uppercase", color:"#5a7a94", marginBottom:8 }}>▸ Conditions</div>
               {strategyLines.slice(1).map((s, i) => (
                 <p key={i} style={{ fontSize:"0.84rem", color:"#a0b8cc", lineHeight:1.65, marginBottom:4 }}>{s}</p>
               ))}
