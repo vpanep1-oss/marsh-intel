@@ -2293,7 +2293,7 @@ export default function FishingTool() {
                             <span style={{ width:10, height:10, background:"rgba(240,165,0,0.2)", display:"inline-block", borderRadius:2 }} />Time blocks
                           </span>
                         </div>
-                        <div style={{ maxHeight:252, overflowY:"auto", border:"1px solid var(--bd)", borderRadius:6 }}>
+                        <div style={{ maxHeight:200, overflowY:"auto", border:"1px solid var(--bd)", borderRadius:6 }}>
                           {windForecast.map((w, i) => {
                             const highlight = blocks.some(b => {
                               const [sh,sm]=b.startTime.split(":").map(Number), [eh,em]=b.endTime.split(":").map(Number);
