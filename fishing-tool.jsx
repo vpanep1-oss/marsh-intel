@@ -897,6 +897,7 @@ function buildCurve(pts) {
 }
 
 function TideChart({ predictions, predictions2 = [], blendWeight = 0.5, label1 = "Station 1", label2 = "Station 2", windForecast = [], primaryZoneId = null }) {
+  const [hover, setHover] = useState(null);
   if (!predictions.length) return null;
   const W = 400, H = 150, padL = 32, padR = 10, padT = 18, padB = 22;
   const cW = W - padL - padR, cH = H - padT - padB;
@@ -927,6 +928,39 @@ function TideChart({ predictions, predictions2 = [], blendWeight = 0.5, label1 =
   const dB = buildCurve(ptsB);
   const fillB = `${dB} L ${ptsB[ptsB.length-1][0]} ${toY(0)} L ${ptsB[0][0]} ${toY(0)} Z`;
 
+  // Wind-tide adjusted heights — blended + wind setup per hour
+  const wtAdjusted = windForecast.length > 0 && primaryZoneId ? blended.map((h, i) => {
+    const hr = parseInt(predictions[i].time.slice(-5).split(":")[0], 10);
+    const wind = windForecast.reduce((best, w) => {
+      const wHr = parseInt(w.time.split(":")[0], 10);
+      return Math.abs(wHr - hr) < Math.abs(parseInt(best.time.split(":")[0], 10) - hr) ? w : best;
+    }, windForecast[0]);
+    const prevH = i > 0 ? blended[i-1] : blended[i+1];
+    const tDir = h > prevH ? "rising" : h < prevH ? "falling" : "slack";
+    const effect = windTideEffect(wind.dir, wind.speed, tDir, primaryZoneId);
+    return Math.max(minH, h + effect.factor * Math.min(wind.speed, 20) * 0.015);
+  }) : null;
+  const ptsWT = wtAdjusted ? wtAdjusted.map((h, i) => [toX(i), toY(h)]) : null;
+  const dWT = ptsWT ? buildCurve(ptsWT) : null;
+
+  const handleSvgMouseMove = (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const svgX = (e.clientX - rect.left) / rect.width * W;
+    const chartX = svgX - padL;
+    if (chartX < 0 || chartX > cW) { setHover(null); return; }
+    const idx = Math.max(0, Math.min(n - 1, Math.round(chartX / cW * (n - 1))));
+    const h = blended[idx];
+    const p = predictions[idx];
+    const wtH = wtAdjusted ? wtAdjusted[idx] : null;
+    const hr = parseInt(p.time.slice(-5).split(":")[0], 10);
+    const wind = windForecast.length ? windForecast.reduce((best, w) => {
+      const wHr = parseInt(w.time.split(":")[0], 10);
+      return Math.abs(wHr - hr) < Math.abs(parseInt(best.time.split(":")[0], 10) - hr) ? w : best;
+    }, windForecast[0]) : null;
+    setHover({ x: toX(idx), y: toY(h), yWT: wtH != null ? toY(wtH) : null, time: p.time.slice(-5), height: h, wtHeight: wtH, windDir: wind?.dir, windSpeed: wind?.speed });
+  };
+
   const yTicks = [];
   const tickStep = range <= 1.5 ? 0.5 : range <= 3 ? 1 : 1.5;
   for (let v = Math.ceil(minH / tickStep) * tickStep; v <= maxH; v = Math.round((v + tickStep) * 100) / 100) yTicks.push(v);
@@ -941,8 +975,31 @@ function TideChart({ predictions, predictions2 = [], blendWeight = 0.5, label1 =
     return (h > arr[i-1].height && h > arr[i+1].height) || (h < arr[i-1].height && h < arr[i+1].height);
   });
 
+  // Pre-compute strip data so we can render label above SVG and bar below
+  const lPct = (padL / W * 100).toFixed(1);
+  const rPct = (padR / W * 100).toFixed(1);
+  const zoneLabel = primaryZoneId ? (ZONES.find(z => z.id === primaryZoneId)?.label ?? primaryZoneId) : null;
+  const stripData = windForecast.length > 0 && primaryZoneId ? predictions.map((p, i) => {
+    const currH = blended[i], prevH = i > 0 ? blended[i-1] : blended[i+1];
+    const tDir = currH > prevH ? "rising" : currH < prevH ? "falling" : "slack";
+    const hr = parseInt(p.time.slice(-5).split(":")[0], 10);
+    const wind = windForecast.reduce((best, w) => {
+      const wHr = parseInt(w.time.split(":")[0], 10);
+      return Math.abs(wHr - hr) < Math.abs(parseInt(best.time.split(":")[0], 10) - hr) ? w : best;
+    }, windForecast[0]);
+    const effect = windTideEffect(wind.dir, wind.speed, tDir, primaryZoneId);
+    const bg = effect.label === "reinforcing" ? "rgba(0,200,160,0.65)" : effect.label === "opposing" ? "rgba(224,90,43,0.65)" : effect.label === "crossing" ? "rgba(74,176,255,0.5)" : effect.label === "wind-driven" ? "rgba(74,176,255,0.35)" : "rgba(30,48,72,0.5)";
+    return { bg, note: effect.note };
+  }) : null;
+
   return (
     <div style={{ marginTop: 12 }}>
+      {/* Wind × Tide label — above chart */}
+      {stripData && zoneLabel && (
+        <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.57rem", letterSpacing:1.5, textTransform:"uppercase", color:"#3a5a74", marginBottom:4 }}>
+          Wind × Tide — {zoneLabel}
+        </div>
+      )}
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H }}>
         <defs>
           <linearGradient id="tideGrad" x1="0" y1="0" x2="0" y2="1">
@@ -982,48 +1039,44 @@ function TideChart({ predictions, predictions2 = [], blendWeight = 0.5, label1 =
           );
         })}
 
+        {/* wind-tide adjusted height line */}
+        {dWT && <path d={dWT} fill="none" stroke="#c8a000" strokeWidth="1.5" strokeDasharray="3,2" strokeOpacity="0.75" />}
+
         {/* x-axis labels */}
         {xLabels.map((p, i) => {
           const idx = predictions.indexOf(p);
           return <text key={i} x={toX(idx)} y={H - 4} textAnchor="middle" fill="#3a5a74" fontSize="7" fontFamily="IBM Plex Mono, monospace">{p.time.slice(-5)}</text>;
         })}
+
+        {/* hover overlay */}
+        <rect x={padL} y={padT} width={cW} height={cH} fill="transparent" style={{ cursor:"crosshair" }}
+          onMouseMove={handleSvgMouseMove} onMouseLeave={() => setHover(null)} />
+        {hover && (() => {
+          const tipW = 88, tipH = hover.wtHeight != null ? 44 : 32;
+          const tipX = hover.x + 10 + tipW > W - padR ? hover.x - tipW - 6 : hover.x + 10;
+          const tipY = Math.max(padT + 2, hover.y - tipH - 4);
+          return (
+            <g pointerEvents="none">
+              <line x1={hover.x} y1={padT} x2={hover.x} y2={padT + cH} stroke="#5a7a94" strokeWidth="1" strokeDasharray="2,2" />
+              <circle cx={hover.x} cy={hover.y} r="3.5" fill="#00c8a0" />
+              {hover.yWT != null && <circle cx={hover.x} cy={hover.yWT} r="3" fill="#c8a000" />}
+              <rect x={tipX} y={tipY} width={tipW} height={tipH} rx={3} fill="#0d1e2e" stroke="#2a4060" strokeWidth="0.5" />
+              <text x={tipX + 6} y={tipY + 11} fill="#5a7a94" fontSize="7.5" fontFamily="IBM Plex Mono, monospace">{hover.time}{hover.windDir ? `  ${hover.windDir} ${hover.windSpeed}mph` : ""}</text>
+              <text x={tipX + 6} y={tipY + 23} fill="#00c8a0" fontSize="8" fontFamily="IBM Plex Mono, monospace">tide  {hover.height.toFixed(2)}ft</text>
+              {hover.wtHeight != null && <text x={tipX + 6} y={tipY + 35} fill="#c8a000" fontSize="8" fontFamily="IBM Plex Mono, monospace">w·t   ~{hover.wtHeight.toFixed(2)}ft</text>}
+            </g>
+          );
+        })()}
       </svg>
 
-      {/* WIND-TIDE INTERACTION STRIP */}
-      {windForecast.length > 0 && primaryZoneId && (() => {
-        const lPct = (padL / W * 100).toFixed(1);
-        const rPct = (padR / W * 100).toFixed(1);
-        const stripData = predictions.map((p, i) => {
-          const currH = blended[i];
-          const prevH = i > 0 ? blended[i - 1] : blended[i + 1];
-          const tDir = currH > prevH ? "rising" : currH < prevH ? "falling" : "slack";
-          const hr = parseInt(p.time.slice(-5).split(":")[0], 10);
-          const wind = windForecast.reduce((best, w) => {
-            const wHr = parseInt(w.time.split(":")[0], 10);
-            return Math.abs(wHr - hr) < Math.abs(parseInt(best.time.split(":")[0], 10) - hr) ? w : best;
-          }, windForecast[0]);
-          const effect = windTideEffect(wind.dir, wind.speed, tDir, primaryZoneId);
-          const bg = effect.label === "reinforcing" ? "rgba(0,200,160,0.65)"
-            : effect.label === "opposing"    ? "rgba(224,90,43,0.65)"
-            : effect.label === "crossing"    ? "rgba(74,176,255,0.5)"
-            : effect.label === "wind-driven" ? "rgba(74,176,255,0.35)"
-            : "rgba(30,48,72,0.5)";
-          return { bg, note: effect.note, label: effect.label };
-        });
-        const zoneLabel = ZONES.find(z => z.id === primaryZoneId)?.label ?? primaryZoneId;
-        return (
-          <div style={{ marginTop: 6, marginBottom: 2 }}>
-            <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.57rem", letterSpacing:1.5, textTransform:"uppercase", color:"#3a5a74", marginBottom:3 }}>
-              Wind × Tide — {zoneLabel}
-            </div>
-            <div style={{ display:"flex", marginLeft:`${lPct}%`, marginRight:`${rPct}%`, height:9, borderRadius:4, overflow:"hidden" }}>
-              {stripData.map((d, i) => (
-                <div key={i} title={d.note} style={{ flex:1, background:d.bg, cursor:"default" }} />
-              ))}
-            </div>
-          </div>
-        );
-      })()}
+      {/* WIND-TIDE INTERACTION STRIP — just below x-axis */}
+      {stripData && (
+        <div style={{ display:"flex", marginLeft:`${lPct}%`, marginRight:`${rPct}%`, height:9, borderRadius:4, overflow:"hidden", marginTop:2 }}>
+          {stripData.map((d, i) => (
+            <div key={i} title={d.note} style={{ flex:1, background:d.bg, cursor:"default" }} />
+          ))}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 14, marginTop: 6, flexWrap: "wrap" }}>
         {hasBlend ? (
@@ -1047,6 +1100,9 @@ function TideChart({ predictions, predictions2 = [], blendWeight = 0.5, label1 =
         )}
         {windForecast.length > 0 && primaryZoneId && (
           <>
+            <span style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#c8a000", display:"flex", alignItems:"center", gap:5 }}>
+              <span style={{ width:14, height:2, borderTop:"2px dashed #c8a000", display:"inline-block" }} />Wind-adj. est.
+            </span>
             {[["rgba(0,200,160,0.65)","Reinforcing"],["rgba(224,90,43,0.65)","Opposing"],["rgba(74,176,255,0.5)","Crossing"],["rgba(30,48,72,0.5)","Minimal wind"]].map(([bg, lbl]) => (
               <span key={lbl} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"#5a7a94", display:"flex", alignItems:"center", gap:5 }}>
                 <span style={{ width:14, height:7, borderRadius:2, background:bg, display:"inline-block" }} />{lbl}
