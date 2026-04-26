@@ -203,7 +203,7 @@ function windTideEffect(windDir, windSpeed, tideDir, zoneId, { windwardBank = ""
 }
 
 // ─── ZONE SCORING ─────────────────────────────────────────────────────────────
-function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, rigoletsSal }) {
+function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, rigoletsSal, tideHeight, tideChange }) {
   const sBadWind  = ["S","SSW","SSE"].includes(windDir) && windSpeed >= 10;
   const nWind     = ["N","NNW","NNE","NW","NE"].includes(windDir);
   const roughWind = windSpeed >= 15;
@@ -232,7 +232,16 @@ function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, hig
     if (season === "spring" || season === "fall") s += 1;
 
   } else if (zoneId === "mrgo-interior") {
-    if (tideDir === "rising") s += 3; else if (tideDir === "falling") s -= 4; else s -= 1;
+    if (tideDir === "rising") {
+      s += 3;
+    } else if (tideDir === "falling") {
+      const h = tideHeight ?? 1.0;
+      if (h >= 1.5) s -= 1;
+      else if (h >= 1.0) s -= 2;
+      else s -= 4;
+    } else {
+      s -= 1; // slack
+    }
     // Sheltered ponds — rough wind is an advantage, not a penalty
     if (roughWind) s += 2; else if (modWind) s += 1;
     if (season === "fall") s += 2; else if (season === "spring") s += 1; else if (season === "summer") s -= 1;
@@ -511,7 +520,7 @@ function generatePlan(blocks, zones, allRules, riverFt, rigoletsSal, pearlRiverF
     const zoneTips = Object.entries(zoneMap).map(([label, tips]) => ({ label, tips }));
 
     // ── Where to fish + cross-zone recommendations ──────────────────────────
-    const blockCond = { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, rigoletsSal };
+    const blockCond = { tideDir, windDir, windSpeed, season, highRiver, highPearlRiver, rigoletsSal, tideHeight: block.tideHeight, tideChange: block.tideChange };
     const spotCond  = { tideDir, windwardBank, highPearlRiver };
 
     const avoidZoneIds = new Set(activeRules.filter(r => r.flag === "avoid").flatMap(r => r.zones));
@@ -599,7 +608,7 @@ function buildBlocksFromData(tidePreds1, tidePreds2, blendWeight, windForecast, 
     let tideDir, tideChange;
     if (isSlack) { tideDir = "slack"; tideChange = 0; }
     else { const net = heightAt(e)-heightAt(s); tideDir = Math.abs(net)<0.08 ? "slack" : net>0 ? "rising" : "falling"; tideChange = parseFloat(Math.abs(net).toFixed(2)); }
-    blocks.push({ startTime: toTime(s), endTime: toTime(e), tideDir, tideChange, ...windAt(mid) });
+    blocks.push({ startTime: toTime(s), endTime: toTime(e), tideDir, tideChange, tideHeight: parseFloat(heightAt(mid).toFixed(2)), ...windAt(mid) });
   }
   return blocks;
 }
@@ -1722,7 +1731,7 @@ export default function FishingTool() {
         const zoneScores = (preset.zones||[]).map(zid => ({
           zoneId: zid,
           label: ZONES.find(z => z.id === zid)?.label ?? zid,
-          score: scoreZone(zid, { tideDir: block.tideDir, windDir: block.windDir, windSpeed: block.windSpeed, season, highRiver, highPearlRiver, rigoletsSal }),
+          score: scoreZone(zid, { tideDir: block.tideDir, windDir: block.windDir, windSpeed: block.windSpeed, season, highRiver, highPearlRiver, rigoletsSal, tideHeight: block.tideHeight, tideChange: block.tideChange }),
         })).sort((a,b) => b.score - a.score);
         return { ...block, topZone: zoneScores[0] ?? null, allZones: zoneScores };
       });
