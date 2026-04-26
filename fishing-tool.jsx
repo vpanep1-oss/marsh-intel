@@ -1161,7 +1161,7 @@ function BlockCard({ block, onSwitchZone }) {
             const warns  = primaryTips.tips.filter(t => t.includes("⚠"));
             return (
               <div style={{ marginBottom:14 }}>
-                {normal.length > 0 && <p style={{ fontSize:"0.84rem", color:"#d0e4f0", lineHeight:1.65, marginBottom: warns.length ? 6 : 0 }}>{normal.join(" ")}</p>}
+                {normal.map((t, j) => <p key={j} style={{ fontSize:"0.84rem", color:"#d0e4f0", lineHeight:1.65, marginBottom: j < normal.length - 1 || warns.length ? 6 : 0 }}>{t}</p>)}
                 {warns.map((t, j) => <p key={j} style={{ fontSize:"0.84rem", color:"#f08070", lineHeight:1.65, marginBottom:0 }}>{t}</p>)}
               </div>
             );
@@ -1189,7 +1189,7 @@ function BlockCard({ block, onSwitchZone }) {
                     <p style={{ fontSize:"0.84rem", color:"#a0b8cc", lineHeight:1.65, marginBottom: tips ? 4 : 0 }}>
                       <span style={{ color:"#d0e4f0" }}>{spot.zone} — {spot.spot}.</span> {spot.reason}.
                     </p>
-                    {normal.length > 0 && <p style={{ fontSize:"0.82rem", color:"#8090a0", lineHeight:1.6, marginBottom: warns.length ? 4 : 0 }}>{normal.join(" ")}</p>}
+                    {normal.map((t, j) => <p key={j} style={{ fontSize:"0.82rem", color:"#8090a0", lineHeight:1.6, marginBottom: j < normal.length - 1 || warns.length ? 4 : 0 }}>{t}</p>)}
                     {warns.map((t, j) => <p key={j} style={{ fontSize:"0.82rem", color:"#f08070", lineHeight:1.6, marginBottom:0 }}>{t}</p>)}
                   </div>
                 );
