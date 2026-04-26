@@ -544,6 +544,67 @@ function generatePlan(blocks, zones, allRules, riverFt, rigoletsSal, pearlRiverF
   });
 }
 
+// ─── BLOCK BUILDER (pure — used by autoGenerateBlocks and Scout compare) ──────
+function buildBlocksFromData(tidePreds1, tidePreds2, blendWeight, windForecast, tripStart, tripEnd) {
+  if (!tidePreds1.length || !tripStart || !tripEnd) return [];
+  const preds = tidePreds2.length > 0
+    ? tidePreds1.map((p,i) => ({ ...p, height: p.height*(1-blendWeight) + (tidePreds2[i]?.height ?? p.height)*blendWeight }))
+    : tidePreds1;
+  const toMin = t => { const [h,m] = t.slice(-5).split(":").map(Number); return h*60+m; };
+  const toTime = m => `${String(Math.floor(m/60)).padStart(2,"0")}:${String(Math.round(m%60)).padStart(2,"0")}`;
+  const pts = preds.map(p => ({ min: toMin(p.time), h: p.height })).sort((a,b) => a.min-b.min);
+  const heightAt = min => {
+    const before = [...pts].reverse().find(p => p.min <= min);
+    const after  = pts.find(p => p.min > min);
+    if (!before) return after?.h ?? 0;
+    if (!after)  return before.h;
+    return before.h + (min - before.min) / (after.min - before.min) * (after.h - before.h);
+  };
+  const windAt = min => {
+    if (!windForecast.length) return { windDir: "", windSpeed: 0 };
+    const w = windForecast.reduce((b,w) => {
+      const [wh,wm] = w.time.split(":").map(Number);
+      const d = Math.abs(wh*60+wm - min);
+      return d < b.d ? {d, w} : b;
+    }, {d:Infinity, w:null}).w;
+    return { windDir: w?.dir ?? "", windSpeed: w?.speed ?? 0 };
+  };
+  const startMin = toMin(tripStart), endMin = toMin(tripEnd);
+  const SLACK_HALF = 30, MIN_BLOCK = 20, SPEED_DELTA = 5;
+  const hilos = preds.map((p,i,arr) => {
+    if (i===0 || i===arr.length-1) return null;
+    const isMax = p.height > arr[i-1].height && p.height > arr[i+1].height;
+    const isMin = p.height < arr[i-1].height && p.height < arr[i+1].height;
+    if (!isMax && !isMin) return null;
+    return { ...p, min: toMin(p.time), type: isMax ? "High" : "Low" };
+  }).filter(Boolean).filter(p => p.min > startMin+15 && p.min < endMin-15).sort((a,b) => a.min-b.min);
+  const slackZones = hilos.map(h => ({ start: Math.max(startMin, h.min-SLACK_HALF), end: Math.min(endMin, h.min+SLACK_HALF) }));
+  const splitPoints = new Set();
+  slackZones.forEach(sz => { splitPoints.add(sz.start); splitPoints.add(sz.end); });
+  if (windForecast.length > 1) {
+    const inSlack = min => slackZones.some(sz => min > sz.start && min < sz.end);
+    const windInWindow = windForecast.filter(w => { const [wh,wm] = w.time.split(":").map(Number); const m = wh*60+wm; return m >= startMin && m <= endMin; });
+    let ref = windInWindow[0];
+    for (let i = 1; i < windInWindow.length; i++) {
+      const curr = windInWindow[i];
+      const [wh,wm] = curr.time.split(":").map(Number); const wMin = wh*60+wm;
+      if (inSlack(wMin)) { ref = curr; continue; }
+      if (curr.dir !== ref.dir || Math.abs(curr.speed - ref.speed) >= SPEED_DELTA) { splitPoints.add(wMin); ref = curr; }
+    }
+  }
+  const boundaries = [startMin, ...splitPoints, endMin].filter(m => m >= startMin && m <= endMin).sort((a,b) => a-b).filter((m,i,arr) => i===0 || m-arr[i-1] >= MIN_BLOCK);
+  const blocks = [];
+  for (let i = 0; i < boundaries.length-1; i++) {
+    const s = boundaries[i], e = boundaries[i+1], mid = (s+e)/2;
+    const isSlack = slackZones.some(sz => s >= sz.start && e <= sz.end);
+    let tideDir, tideChange;
+    if (isSlack) { tideDir = "slack"; tideChange = 0; }
+    else { const net = heightAt(e)-heightAt(s); tideDir = Math.abs(net)<0.08 ? "slack" : net>0 ? "rising" : "falling"; tideChange = parseFloat(Math.abs(net).toFixed(2)); }
+    blocks.push({ startTime: toTime(s), endTime: toTime(e), tideDir, tideChange, ...windAt(mid) });
+  }
+  return blocks;
+}
+
 // ─── NOAA TIDE FETCH ──────────────────────────────────────────────────────────
 function interpolateHourly(hilos, dateStr) {
   if (!hilos || hilos.length < 1) throw new Error("No hi/lo tide data returned for this station.");
@@ -1394,6 +1455,13 @@ export default function FishingTool() {
   const [currentUser, setCurrentUser] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
 
+  // Scout / Compare
+  const [compareDate, setCompareDate] = useState(new Date().toISOString().slice(0,10));
+  const [compareTripStart, setCompareTripStart] = useState("06:30");
+  const [compareTripEnd, setCompareTripEnd] = useState("12:00");
+  const [compareResults, setCompareResults] = useState([]);
+  const [compareLoading, setCompareLoading] = useState(false);
+
   // Tide
   const [tideStation, setTideStation] = useState("");
   const [tideStation2, setTideStation2] = useState("");
@@ -1590,111 +1658,8 @@ export default function FishingTool() {
 
   const autoGenerateBlocks = () => {
     if (!tidePreds.length) return;
-
-    const preds = tidePreds2.length > 0
-      ? tidePreds.map((p,i) => ({ ...p, height: p.height*(1-blendWeight) + (tidePreds2[i]?.height ?? p.height)*blendWeight }))
-      : tidePreds;
-
-    const toMin = t => { const [h,m] = t.slice(-5).split(":").map(Number); return h*60+m; };
-    const toTime = m => `${String(Math.floor(m/60)).padStart(2,"0")}:${String(Math.round(m%60)).padStart(2,"0")}`;
-    const pts = preds.map(p => ({ min: toMin(p.time), h: p.height })).sort((a,b) => a.min-b.min);
-    const heightAt = min => {
-      const before = [...pts].reverse().find(p => p.min <= min);
-      const after  = pts.find(p => p.min > min);
-      if (!before) return after?.h ?? 0;
-      if (!after)  return before.h;
-      return before.h + (min - before.min) / (after.min - before.min) * (after.h - before.h);
-    };
-    const windAt = min => {
-      if (!windForecast.length) return { windDir: "", windSpeed: 0 };
-      const w = windForecast.reduce((b,w) => {
-        const [wh,wm] = w.time.split(":").map(Number);
-        const d = Math.abs(wh*60+wm - min);
-        return d < b.d ? {d, w} : b;
-      }, {d:Infinity, w:null}).w;
-      return { windDir: w?.dir ?? "", windSpeed: w?.speed ?? 0 };
-    };
-
-    const startMin = toMin(tripStart), endMin = toMin(tripEnd);
-    const SLACK_HALF = 30;
-    const MIN_BLOCK = 20;
-    const SPEED_DELTA = 5; // mph cumulative change from segment start
-
-    // ── detect tide turning points algorithmically from hourly curve ─────────
-    const hilos = preds
-      .map((p, i, arr) => {
-        if (i === 0 || i === arr.length - 1) return null;
-        const isMax = p.height > arr[i-1].height && p.height > arr[i+1].height;
-        const isMin = p.height < arr[i-1].height && p.height < arr[i+1].height;
-        if (!isMax && !isMin) return null;
-        return { ...p, min: toMin(p.time), type: isMax ? "High" : "Low" };
-      })
-      .filter(Boolean)
-      .filter(p => p.min > startMin + 15 && p.min < endMin - 15)
-      .sort((a,b) => a.min - b.min);
-
-    const slackZones = hilos.map(h => ({
-      start: Math.max(startMin, h.min - SLACK_HALF),
-      end:   Math.min(endMin,   h.min + SLACK_HALF),
-      hilo:  h,
-    }));
-
-    // ── collect all split points within non-slack segments ───────────────────
-    const splitPoints = new Set();
-    slackZones.forEach(sz => { splitPoints.add(sz.start); splitPoints.add(sz.end); });
-
-    if (windForecast.length > 1) {
-      const inSlack = min => slackZones.some(sz => min > sz.start && min < sz.end);
-      const windInWindow = windForecast.filter(w => {
-        const [wh,wm] = w.time.split(":").map(Number);
-        const m = wh*60+wm;
-        return m >= startMin && m <= endMin;
-      });
-
-      // Compare each hour against the reference at the START of the current
-      // segment so gradual cumulative changes (e.g. +2mph/hr) still split.
-      let ref = windInWindow[0];
-      for (let i = 1; i < windInWindow.length; i++) {
-        const curr = windInWindow[i];
-        const [wh,wm] = curr.time.split(":").map(Number);
-        const wMin = wh*60+wm;
-        if (inSlack(wMin)) { ref = curr; continue; }
-
-        const dirShift = curr.dir !== ref.dir;
-        const spdShift = Math.abs(curr.speed - ref.speed) >= SPEED_DELTA;
-        if (dirShift || spdShift) {
-          splitPoints.add(wMin);
-          ref = curr; // reset reference to this new segment start
-        }
-      }
-    }
-
-    // ── build ordered list of all boundaries ─────────────────────────────────
-    const boundaries = [startMin, ...splitPoints, endMin]
-      .filter(m => m >= startMin && m <= endMin)
-      .sort((a, b) => a - b)
-      .filter((m, i, arr) => i === 0 || m - arr[i - 1] >= MIN_BLOCK); // drop too-close splits
-
-    // ── create one block per adjacent pair of boundaries ─────────────────────
-    const newBlocks = [];
-    for (let i = 0; i < boundaries.length - 1; i++) {
-      const s = boundaries[i], e = boundaries[i + 1];
-      const mid = (s + e) / 2;
-      const isSlack = slackZones.some(sz => s >= sz.start && e <= sz.end);
-
-      let tideDir, tideChange;
-      if (isSlack) {
-        tideDir = "slack"; tideChange = 0;
-      } else {
-        const net = heightAt(e) - heightAt(s);
-        tideDir = Math.abs(net) < 0.08 ? "slack" : net > 0 ? "rising" : "falling";
-        tideChange = parseFloat(Math.abs(net).toFixed(2));
-      }
-
-      newBlocks.push({ startTime: toTime(s), endTime: toTime(e), tideDir, tideChange, ...windAt(mid) });
-    }
-
-    if (newBlocks.length) setBlocks(newBlocks);
+    const b = buildBlocksFromData(tidePreds, tidePreds2, blendWeight, windForecast, tripStart, tripEnd);
+    if (b.length) setBlocks(b);
   };
 
   const buildPlanArgs = () => {
@@ -1718,6 +1683,82 @@ export default function FishingTool() {
     setZones(newZones);
     const { rigoletsSal, moon, pressureTrend } = buildPlanArgs();
     setPlan(generatePlan(blocks, newZones, allRules, riverFt, rigoletsSal, pearlRiverFt, moon, pressureTrend, waterTempF, tideDate));
+  };
+
+  const runCompare = async () => {
+    if (!compareDate || !compareTripStart || !compareTripEnd || !savedPresets.length) return;
+    setCompareLoading(true);
+    setCompareResults([]);
+    // Fetch shared data once
+    let sRiverFt = null, sPearlRiverFt = null, sWaterQuality = [], sWaterTempF = null;
+    await Promise.allSettled([
+      fetchRiverGauge("07374000").then(v => sRiverFt = v).catch(() => {}),
+      fetchRiverGauge("02492000").then(v => sPearlRiverFt = v).catch(() => {}),
+      fetchWaterQuality().then(v => sWaterQuality = v).catch(() => {}),
+      fetchWaterTemp("8761305").then(v => sWaterTempF = v).catch(() => {}),
+    ]);
+    const sharedData = { riverFt: sRiverFt, pearlRiverFt: sPearlRiverFt, waterQuality: sWaterQuality, waterTempF: sWaterTempF };
+    const month = new Date(compareDate + "T12:00:00").getMonth() + 1;
+    const season = month <= 2 || month === 12 ? "winter" : month <= 5 ? "spring" : month <= 8 ? "summer" : "fall";
+    const highRiver = sRiverFt !== null && sRiverFt > 12;
+    const highPearlRiver = sPearlRiverFt !== null && sPearlRiverFt > 10;
+    const rigoletsSal = sWaterQuality.find(s => s.id === "301001089442600")?.salNow ?? null;
+
+    const results = await Promise.all(savedPresets.map(async preset => {
+      let tidePreds1 = [], tidePreds2p = [], windForecastP = [];
+      await Promise.allSettled([
+        fetchNOAATides(preset.tideStation, compareDate).then(v => tidePreds1 = v).catch(() => {}),
+        preset.tideStation2 ? fetchNOAATides(preset.tideStation2, compareDate).then(v => tidePreds2p = v).catch(() => {}) : Promise.resolve(),
+        (() => {
+          const vc = (preset.coords||[]).filter(c => !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lng)));
+          if (!vc.length) return Promise.resolve();
+          const lat = (vc.reduce((s,c) => s+parseFloat(c.lat),0)/vc.length).toFixed(4);
+          const lng = (vc.reduce((s,c) => s+parseFloat(c.lng),0)/vc.length).toFixed(4);
+          return fetchWindForecast(lat, lng, compareDate, windModel).then(v => windForecastP = v).catch(() => {});
+        })(),
+      ]);
+      const pBlocks = buildBlocksFromData(tidePreds1, tidePreds2p, preset.blendWeight ?? 0, windForecastP, compareTripStart, compareTripEnd);
+      if (!pBlocks.length) return { preset, sharedData, tidePreds1, tidePreds2p, windForecastP, blocks: pBlocks, blockScores: [], avgScore: 0, peakBlock: null, error: "No tide data" };
+      const blockScores = pBlocks.map(block => {
+        const zoneScores = (preset.zones||[]).map(zid => ({
+          zoneId: zid,
+          label: ZONES.find(z => z.id === zid)?.label ?? zid,
+          score: scoreZone(zid, { tideDir: block.tideDir, windDir: block.windDir, windSpeed: block.windSpeed, season, highRiver, highPearlRiver, rigoletsSal }),
+        })).sort((a,b) => b.score - a.score);
+        return { ...block, topZone: zoneScores[0] ?? null, allZones: zoneScores };
+      });
+      const scores = blockScores.map(b => b.topZone?.score ?? 0);
+      const avgScore = scores.reduce((a,b) => a+b, 0) / scores.length;
+      const peakBlock = blockScores.reduce((best,b) => (b.topZone?.score ?? 0) >= (best?.topZone?.score ?? 0) ? b : best, blockScores[0]);
+      return { preset, sharedData, tidePreds1, tidePreds2p, windForecastP, blocks: pBlocks, blockScores, avgScore, peakBlock };
+    }));
+
+    results.sort((a,b) => b.avgScore - a.avgScore);
+    setCompareResults(results);
+    setCompareLoading(false);
+  };
+
+  const loadFromCompare = (result) => {
+    loadPreset(result.preset);
+    setTidePreds(result.tidePreds1);
+    setTidePreds2(result.tidePreds2p);
+    setWindForecast(result.windForecastP);
+    setTideDate(compareDate);
+    setRiverFt(result.sharedData.riverFt);
+    setPearlRiverFt(result.sharedData.pearlRiverFt);
+    setWaterQuality(result.sharedData.waterQuality);
+    setWaterTempF(result.sharedData.waterTempF);
+    setBlocks(result.blocks);
+    setTripStart(compareTripStart);
+    setTripEnd(compareTripEnd);
+    const rigoletsSal = result.sharedData.waterQuality.find(s => s.id === "301001089442600")?.salNow ?? null;
+    const moon = getMoonPhase(compareDate);
+    const pressures = result.windForecastP.map(w => w.pressure).filter(Boolean);
+    const pressureTrend = pressures.length >= 6
+      ? (() => { const e = pressures.slice(0,3).reduce((a,b)=>a+b,0)/3; const l = pressures.slice(-3).reduce((a,b)=>a+b,0)/3; return l - e > 1 ? "rising" : l - e < -1 ? "falling" : "steady"; })()
+      : "steady";
+    setPlan(generatePlan(result.blocks, result.preset.zones, allRules, result.sharedData.riverFt, rigoletsSal, result.sharedData.pearlRiverFt, moon, pressureTrend, result.sharedData.waterTempF, compareDate));
+    setTab("plan");
   };
 
   const postToNetlify = (fields) =>
@@ -1961,7 +2002,7 @@ export default function FishingTool() {
         </div>
 
         <div className="tabs">
-          {[["setup","Trip Setup"],["plan","Game Plan"],["map","Map"],["rules","Rules DB"],["history","History"]].map(([id, lbl]) => (
+          {[["setup","Trip Setup"],["scout","Scout"],["plan","Game Plan"],["map","Map"],["rules","Rules DB"],["history","History"]].map(([id, lbl]) => (
             <button key={id} className={`tab ${tab === id ? "on" : ""}`} onClick={() => {
               if (id === "plan" && !plan) generate();
               else setTab(id);
@@ -2431,6 +2472,103 @@ export default function FishingTool() {
             </>
           )}
           {tab === "plan" && !plan && <p style={{ color:"var(--mu)", fontFamily:"IBM Plex Mono,monospace", fontSize:"0.8rem" }}>Complete Trip Setup and generate a plan first.</p>}
+
+          {/* SCOUT */}
+          {tab === "scout" && !currentUser && (
+            <div style={{ textAlign:"center", padding:"60px 20px", fontFamily:"IBM Plex Mono,monospace", color:"var(--mu)", fontSize:"0.78rem" }}>Sign in to use Scout.</div>
+          )}
+          {tab === "scout" && currentUser && savedPresets.length === 0 && (
+            <div style={{ textAlign:"center", padding:"60px 20px", fontFamily:"IBM Plex Mono,monospace", color:"var(--mu)", fontSize:"0.78rem" }}>No presets saved. Save up to 3 presets in Trip Setup to use Scout.</div>
+          )}
+          {tab === "scout" && currentUser && savedPresets.length > 0 && (() => {
+            const scoreColor = s => s >= 8 ? "#00c8a0" : s >= 6 ? "#c8a000" : "#e05a2b";
+            const tideBadge = d => d === "falling" ? "↓ Falling" : d === "rising" ? "↑ Rising" : "— Slack";
+            return (
+              <div style={{ paddingBottom: 32 }}>
+                <div className="sl" style={{ marginBottom: 14 }}>Scout Conditions</div>
+                {/* Controls */}
+                <div className="card" style={{ marginBottom: 20 }}>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"flex-end" }}>
+                    <div>
+                      <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"var(--mu)", marginBottom:4, textTransform:"uppercase", letterSpacing:1 }}>Date</div>
+                      <input type="date" value={compareDate} onChange={e => setCompareDate(e.target.value)} style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.8rem" }} />
+                    </div>
+                    <div>
+                      <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"var(--mu)", marginBottom:4, textTransform:"uppercase", letterSpacing:1 }}>Trip Start</div>
+                      <TimeInput value={compareTripStart} onChange={setCompareTripStart} style={{ width:90, fontFamily:"IBM Plex Mono,monospace", fontSize:"0.8rem" }} />
+                    </div>
+                    <div>
+                      <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"var(--mu)", marginBottom:4, textTransform:"uppercase", letterSpacing:1 }}>Trip End</div>
+                      <TimeInput value={compareTripEnd} onChange={setCompareTripEnd} style={{ width:90, fontFamily:"IBM Plex Mono,monospace", fontSize:"0.8rem" }} />
+                    </div>
+                    <button className="btn btn-primary" onClick={runCompare} disabled={compareLoading} style={{ alignSelf:"flex-end" }}>
+                      {compareLoading ? "Fetching…" : "Compare All →"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Results */}
+                {compareResults.map((r, ri) => {
+                  const avg = r.avgScore;
+                  const peak = r.peakBlock;
+                  const borderColor = scoreColor(avg);
+                  const tideStation1Label = TIDE_STATIONS.find(s => s.id === r.preset.tideStation)?.label ?? r.preset.tideStation;
+                  return (
+                    <div key={r.preset.id} className="card" style={{ borderLeft:`3px solid ${borderColor}`, marginBottom:16 }}>
+                      {/* Header */}
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                        <div>
+                          <div style={{ fontFamily:"Bebas Neue,sans-serif", fontSize:"1.3rem", color:"var(--fg)", letterSpacing:1, lineHeight:1 }}>{r.preset.name}</div>
+                          <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"var(--mu)", marginTop:3 }}>{tideStation1Label}</div>
+                          <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.65rem", color:"var(--mu)", marginTop:2 }}>{(r.preset.zones||[]).map(zid => ZONES.find(z => z.id === zid)?.label ?? zid).join(" · ")}</div>
+                        </div>
+                        <div style={{ textAlign:"right" }}>
+                          <div style={{ fontFamily:"Bebas Neue,sans-serif", fontSize:"2rem", color:borderColor, lineHeight:1 }}>{avg.toFixed(1)}</div>
+                          <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.6rem", color:"var(--mu)" }}>avg / 10</div>
+                        </div>
+                      </div>
+
+                      {/* Peak callout */}
+                      {peak && peak.topZone && (
+                        <div style={{ background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"8px 10px", marginBottom:10, fontFamily:"IBM Plex Mono,monospace", fontSize:"0.74rem" }}>
+                          <span style={{ color:"var(--mu)" }}>Peak </span>
+                          <span style={{ color:scoreColor(peak.topZone.score), fontWeight:600 }}>{peak.topZone.score}/10</span>
+                          <span style={{ color:"var(--mu)" }}> · {peak.startTime}–{peak.endTime} · {tideBadge(peak.tideDir)} · </span>
+                          <span style={{ color:"var(--fg)" }}>{peak.topZone.label}</span>
+                          {peak.windDir && <span style={{ color:"var(--mu)" }}> · {peak.windDir} {peak.windSpeed}mph</span>}
+                        </div>
+                      )}
+
+                      {r.error && <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.72rem", color:"#e05a2b", marginBottom:8 }}>⚠ {r.error}</div>}
+
+                      {/* Per-block table */}
+                      {r.blockScores.length > 0 && (
+                        <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:12 }}>
+                          {r.blockScores.map((b, bi) => (
+                            <div key={bi} style={{ display:"flex", alignItems:"center", gap:8, fontFamily:"IBM Plex Mono,monospace", fontSize:"0.7rem" }}>
+                              <span style={{ color:"var(--mu)", minWidth:110 }}>{b.startTime}–{b.endTime}</span>
+                              <span className={`badge tb-${b.tideDir}`} style={{ fontSize:"0.6rem", padding:"1px 6px" }}>{tideBadge(b.tideDir)}</span>
+                              {b.windDir && <span className="badge wb" style={{ fontSize:"0.6rem", padding:"1px 6px" }}>{b.windDir} {b.windSpeed}mph</span>}
+                              <span style={{ color:"var(--fg)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{b.topZone?.label ?? "—"}</span>
+                              <span style={{ color:scoreColor(b.topZone?.score ?? 0), minWidth:28, textAlign:"right", fontWeight:600 }}>{b.topZone?.score ?? "—"}/10</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <button className="btn btn-primary btn-sm" onClick={() => loadFromCompare(r)}>Load This Plan →</button>
+                    </div>
+                  );
+                })}
+
+                {compareResults.length === 0 && !compareLoading && (
+                  <div style={{ fontFamily:"IBM Plex Mono,monospace", fontSize:"0.78rem", color:"var(--mu)", textAlign:"center", padding:"40px 0" }}>
+                    Set a date and tap Compare All to score your presets.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* MAP */}
           {tab === "map" && (
