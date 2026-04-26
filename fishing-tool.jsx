@@ -232,7 +232,7 @@ function scoreZone(zoneId, { tideDir, windDir, windSpeed, season, highRiver, hig
     if (season === "spring" || season === "fall") s += 1;
 
   } else if (zoneId === "mrgo-interior") {
-    if (tideDir === "rising") s += 3; else if (tideDir === "falling") s += 2;
+    if (tideDir === "rising") s += 3; else if (tideDir === "falling") s -= 4; else s -= 1;
     // Sheltered ponds — rough wind is an advantage, not a penalty
     if (roughWind) s += 2; else if (modWind) s += 1;
     if (season === "fall") s += 2; else if (season === "spring") s += 1; else if (season === "summer") s -= 1;
