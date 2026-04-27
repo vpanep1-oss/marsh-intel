@@ -208,7 +208,7 @@ function windTideEffect(windDir, windSpeed, tideDir, zoneId, { windwardBank = ""
       : `${windDir} wind (${windSpeed}mph) opposing the ${tideDir} current — tide weakened. Fish spread out on structure; don't expect them stacked at drain exits.` };
 
   return { label: "crossing", factor, color: "#4ab0ff",
-    note: `${windDir} wind (${windSpeed}mph) crossing the tidal flow — current intact, wind stacking bait onto the ${windwardBank || "windward bank"} alongside the tide.` };
+    note: `${windDir} wind (${windSpeed}mph) crossing the tidal flow — tide is the primary driver. Secondary: ${windwardBank || "windward bank"} picks up wind-stacked bait if the main spots are slow.` };
 }
 
 // ─── ZONE SCORING ─────────────────────────────────────────────────────────────
